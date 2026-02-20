@@ -22,8 +22,8 @@ from .reference_matcher import ReferenceManager
 
 logger = logging.getLogger(__name__)
 
-# Target image size for annotations
-TARGET_SIZE = (640, 480)
+# Target width for annotations (height derived from original aspect ratio)
+TARGET_WIDTH = 640
 
 # Global singletons (lazy)
 _pose_estimator: Optional[PoseEstimator] = None
@@ -66,6 +66,73 @@ def create_job(video_filename: str) -> str:
     return job_id
 
 
+def _isolate_first_swing(frames, poses):
+    """If video has multiple swings, keep only the first one.
+
+    Detects swing boundaries by looking at wrist height trajectory:
+    a swing is a cycle where wrists rise (backswing) then fall (downswing/follow-through).
+    """
+    n = len(poses)
+    if n < 10:
+        return frames, poses
+
+    # Build wrist height signal
+    wrist_y = []
+    for p in poses:
+        if p and 'left_wrist' in p:
+            wrist_y.append(p['left_wrist'][1])
+        else:
+            wrist_y.append(None)
+
+    # Fill None gaps with interpolation
+    valid = [(i, y) for i, y in enumerate(wrist_y) if y is not None]
+    if len(valid) < n * 0.3:
+        return frames, poses  # not enough data
+
+    filled = list(wrist_y)
+    for i in range(n):
+        if filled[i] is None:
+            # nearest neighbor
+            dists = [(abs(i - vi), vy) for vi, vy in valid]
+            filled[i] = min(dists, key=lambda x: x[0])[1]
+
+    import numpy as np
+    arr = np.array(filled)
+    # Smooth
+    k = max(3, n // 15)
+    if k % 2 == 0:
+        k += 1
+    kernel = np.ones(k) / k
+    smooth = np.convolve(arr, kernel, mode='same')
+
+    # Find the first significant dip (backswing: wrist goes UP = y decreases in MediaPipe)
+    # then recovery (follow-through: wrist comes back down = y increases)
+    baseline = smooth[:max(1, n // 10)].mean()
+    threshold = 0.08  # significant wrist movement
+
+    # Find first frame where wrist rises above threshold from baseline
+    swing_start = 0
+    for i in range(n):
+        if baseline - smooth[i] > threshold:
+            swing_start = max(0, i - n // 10)  # back up slightly for address
+            break
+
+    # From the dip, find where wrist returns near baseline (finish)
+    swing_end = n - 1
+    min_idx = swing_start + np.argmin(smooth[swing_start:])  # top of backswing
+    for i in range(min_idx, n):
+        if smooth[i] >= baseline - threshold * 0.5:
+            swing_end = min(i + n // 10, n - 1)  # pad slightly for finish
+            break
+
+    # Only crop if we found a meaningful first swing that's shorter than full video
+    if swing_end - swing_start < n * 0.9 and swing_end - swing_start >= 8:
+        logger.info(f"Isolated first swing: frames {swing_start}-{swing_end} of {n}")
+        return frames[swing_start:swing_end + 1], poses[swing_start:swing_end + 1]
+
+    return frames, poses
+
+
 def run_analysis(job_id: str):
     """Run the full analysis pipeline for a job. Designed to run in a background thread."""
     job = _jobs.get(job_id)
@@ -92,7 +159,8 @@ def run_analysis(job_id: str):
         job["progress"] = 35
         job["message"] = "Poses detected. Segmenting swing stages..."
 
-        # Step 3: Stage segmentation
+        # Step 3: Isolate first swing, then segment stages
+        frames, poses = _isolate_first_swing(frames, poses)
         stage_indices = segment_swing_stages(poses, len(frames), frames=frames)
         job["progress"] = 45
         job["message"] = "Stages segmented. Analyzing each stage..."
@@ -128,8 +196,12 @@ def run_analysis(job_id: str):
             # Generate feedback
             feedback = generate_stage_feedback(stage, stage_score, metric_scores, metrics)
 
-            # Resize user frame
-            user_frame_resized = cv2.resize(frame, TARGET_SIZE, interpolation=cv2.INTER_AREA)
+            # Resize user frame preserving aspect ratio
+            h_orig, w_orig = frame.shape[:2]
+            scale = TARGET_WIDTH / w_orig
+            target_h = int(h_orig * scale)
+            user_size = (TARGET_WIDTH, target_h)
+            user_frame_resized = cv2.resize(frame, user_size, interpolation=cv2.INTER_AREA)
 
             # Annotate user frame
             user_annotated = annotate_stage_frame(
@@ -142,7 +214,8 @@ def run_analysis(job_id: str):
             ref_landmarks = None
 
             if ref_frame is not None:
-                ref_frame_resized = cv2.resize(ref_frame, TARGET_SIZE, interpolation=cv2.INTER_AREA)
+                # Resize reference to same dimensions as user frame (same aspect ratio)
+                ref_frame_resized = cv2.resize(ref_frame, user_size, interpolation=cv2.INTER_AREA)
                 # Detect pose on reference
                 ref_landmarks = pose.detect(ref_frame_resized)
                 if ref_landmarks:
@@ -158,7 +231,7 @@ def run_analysis(job_id: str):
                 )
             else:
                 # Create placeholder reference
-                ref_annotated = _create_placeholder_reference(stage, TARGET_SIZE)
+                ref_annotated = _create_placeholder_reference(stage, user_size)
 
             # Save images
             user_img_name = f"{stage}_user.jpg"

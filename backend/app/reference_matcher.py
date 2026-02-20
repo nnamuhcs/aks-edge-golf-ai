@@ -66,25 +66,41 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-8))
 
 
+def _detect_camera_angle(frame_bgr: np.ndarray) -> str:
+    """Detect if golfer faces camera ('face-on') or away ('rear').
+    Uses nose position relative to shoulders as a proxy."""
+    try:
+        from .pose_estimator import PoseEstimator
+        pe = PoseEstimator()
+        result = pe.detect(frame_bgr)
+        pe.close()
+        if result is None:
+            return "unknown"
+        nose_x = result['nose'][0]
+        ls_x = result['left_shoulder'][0]
+        rs_x = result['right_shoulder'][0]
+        if min(ls_x, rs_x) < nose_x < max(ls_x, rs_x):
+            return "face-on"
+        return "rear"
+    except Exception:
+        return "unknown"
+
+
 class ReferenceManager:
     """Manages good-practice reference frames for side-by-side comparison."""
 
     def __init__(self, reference_dir: Path):
         self.reference_dir = reference_dir
-        self.stages_dir = reference_dir / "stages"
         self.reference_frames: Dict[str, List[str]] = {}
         self.embeddings: Dict[str, List[Tuple[str, np.ndarray]]] = {}
+        self._ref_angles: Dict[str, str] = {}  # path -> "face-on"/"rear"
         self._load_references()
 
     def _load_references(self):
-        """Load reference frame paths and optionally compute embeddings."""
-        if not self.stages_dir.exists():
-            logger.warning(f"Reference stages directory not found: {self.stages_dir}")
-            return
-
+        """Load reference frame paths from reference_dir/{stage}/*.jpg."""
         from .config import SWING_STAGES
         for stage in SWING_STAGES:
-            stage_dir = self.stages_dir / stage
+            stage_dir = self.reference_dir / stage
             if not stage_dir.exists():
                 continue
 
@@ -108,7 +124,7 @@ class ReferenceManager:
         logger.info(f"Loaded {total} reference frames across {len(self.reference_frames)} stages")
 
     def get_reference_frame(self, stage: str, user_frame: np.ndarray = None) -> Optional[np.ndarray]:
-        """Get reference frame for a stage. Uses CLIP matching if available, else first ref."""
+        """Get reference frame for a stage, matching camera angle to user video."""
         # Try CLIP matching first
         if stage in self.embeddings and self.embeddings[stage] and user_frame is not None:
             user_emb = get_image_embedding(user_frame)
@@ -122,7 +138,18 @@ class ReferenceManager:
                 if best_path:
                     return cv2.imread(best_path)
 
-        # Fallback: load first available reference
+        # Angle-aware fallback: pick reference with matching camera angle
+        if stage in self.reference_frames and self.reference_frames[stage] and user_frame is not None:
+            user_angle = _detect_camera_angle(user_frame)
+            if user_angle != "unknown":
+                for ref_path in self.reference_frames[stage]:
+                    if ref_path not in self._ref_angles:
+                        ref_img = cv2.imread(ref_path)
+                        self._ref_angles[ref_path] = _detect_camera_angle(ref_img) if ref_img is not None else "unknown"
+                    if self._ref_angles[ref_path] == user_angle:
+                        return cv2.imread(ref_path)
+
+        # Final fallback: load first available reference
         if stage in self.reference_frames and self.reference_frames[stage]:
             return cv2.imread(self.reference_frames[stage][0])
 
