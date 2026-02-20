@@ -11,19 +11,22 @@ class TestScoring:
 
     def test_score_metric_at_min(self):
         score = score_metric(15, (15, 30, 45))
-        assert 0 <= score <= 5  # Very close to min
+        # Gaussian: at boundary, score ≈ 61 (1 sigma away)
+        assert 55 <= score <= 65
 
     def test_score_metric_at_max(self):
         score = score_metric(45, (15, 30, 45))
-        assert 0 <= score <= 5
+        assert 55 <= score <= 65
 
     def test_score_metric_outside_range(self):
         score = score_metric(60, (15, 30, 45))
-        assert score == 0.0
+        # Gaussian: beyond range, still > 0 but low
+        assert 0 <= score <= 25
 
     def test_score_metric_mid_range(self):
         score = score_metric(22.5, (15, 30, 45))
-        assert 40 <= score <= 60
+        # Gaussian: halfway between ideal and min → high score
+        assert 80 <= score <= 95
 
     def test_score_stage_returns_score_and_metrics(self):
         metrics = {
