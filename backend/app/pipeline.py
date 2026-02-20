@@ -13,7 +13,7 @@ from .config import (
     SWING_STAGES, STAGE_DISPLAY_NAMES,
 )
 from .video_decoder import extract_frames
-from .pose_estimator import PoseEstimator, compute_body_metrics
+from .pose_estimator import PoseEstimator, compute_body_metrics, detect_handedness, normalize_metrics
 from .stage_segmentation import segment_swing_stages
 from .orientation import normalize_orientation, resize_to_match
 from .scoring import score_stage, compute_overall_score, generate_stage_feedback
@@ -69,66 +69,98 @@ def create_job(video_filename: str) -> str:
 def _isolate_first_swing(frames, poses):
     """If video has multiple swings, keep only the first one.
 
-    Detects swing boundaries by looking at wrist height trajectory:
-    a swing is a cycle where wrists rise (backswing) then fall (downswing/follow-through).
+    Uses wrist Y trajectory to find the first complete swing cycle:
+    address (high Y) → top (low Y) → impact (high Y again) → finish (low Y again).
+    If a second swing starts after the finish, we cut before it.
     """
     n = len(poses)
-    if n < 10:
+    if n < 15:
         return frames, poses
+
+    import numpy as np
 
     # Build wrist height signal
     wrist_y = []
     for p in poses:
         if p and 'left_wrist' in p:
-            wrist_y.append(p['left_wrist'][1])
+            wrist_y.append((p['left_wrist'][1] + p.get('right_wrist', p['left_wrist'])[1]) / 2)
         else:
             wrist_y.append(None)
 
-    # Fill None gaps with interpolation
     valid = [(i, y) for i, y in enumerate(wrist_y) if y is not None]
     if len(valid) < n * 0.3:
-        return frames, poses  # not enough data
+        return frames, poses
 
     filled = list(wrist_y)
     for i in range(n):
         if filled[i] is None:
-            # nearest neighbor
             dists = [(abs(i - vi), vy) for vi, vy in valid]
             filled[i] = min(dists, key=lambda x: x[0])[1]
 
-    import numpy as np
     arr = np.array(filled)
-    # Smooth
     k = max(3, n // 15)
     if k % 2 == 0:
         k += 1
     kernel = np.ones(k) / k
     smooth = np.convolve(arr, kernel, mode='same')
 
-    # Find the first significant dip (backswing: wrist goes UP = y decreases in MediaPipe)
-    # then recovery (follow-through: wrist comes back down = y increases)
-    baseline = smooth[:max(1, n // 10)].mean()
-    threshold = 0.08  # significant wrist movement
+    # Use MEDIAN of all wrist heights as a proxy for address/impact level
+    baseline = np.median(smooth)
 
-    # Find first frame where wrist rises above threshold from baseline
-    swing_start = 0
+    # Find the FIRST significant dip below baseline (= top of backswing)
+    dip_threshold = baseline - 0.06
+    first_dip = None
     for i in range(n):
-        if baseline - smooth[i] > threshold:
-            swing_start = max(0, i - n // 10)  # back up slightly for address
+        if smooth[i] < dip_threshold:
+            first_dip = i
             break
 
-    # From the dip, find where wrist returns near baseline (finish)
-    swing_end = n - 1
-    min_idx = swing_start + np.argmin(smooth[swing_start:])  # top of backswing
-    for i in range(min_idx, n):
-        if smooth[i] >= baseline - threshold * 0.5:
-            swing_end = min(i + n // 10, n - 1)  # pad slightly for finish
+    if first_dip is None:
+        return frames, poses  # no clear swing detected
+
+    # Find the first top (minimum wrist Y in the first dip region)
+    # Search forward from first_dip until wrist starts rising again
+    dip_end = first_dip
+    for i in range(first_dip, n):
+        if smooth[i] > dip_threshold:
+            dip_end = i
+            break
+    else:
+        dip_end = n - 1
+
+    first_top_idx = first_dip + int(np.argmin(smooth[first_dip:dip_end + 1]))
+
+    # After the first top, wrist rises back to impact level, then drops to finish.
+    # Find where the wrist returns to baseline after top (= impact zone)
+    impact_zone = None
+    for i in range(first_top_idx, n):
+        if smooth[i] >= baseline - 0.03:
+            impact_zone = i
             break
 
-    # Only crop if we found a meaningful first swing that's shorter than full video
-    if swing_end - swing_start < n * 0.9 and swing_end - swing_start >= 8:
-        logger.info(f"Isolated first swing: frames {swing_start}-{swing_end} of {n}")
-        return frames[swing_start:swing_end + 1], poses[swing_start:swing_end + 1]
+    if impact_zone is None:
+        return frames, poses
+
+    # After impact, wrist drops again for finish. Find the finish dip.
+    # Then look for a SECOND rise back to baseline (= second swing starting)
+    # If found, cut there.
+    finish_dip = impact_zone + int(np.argmin(smooth[impact_zone:])) if impact_zone < n else n - 1
+
+    # After finish dip, look for second return to baseline = second swing address
+    second_swing_start = None
+    if finish_dip < n - 5:
+        for i in range(finish_dip, n):
+            if smooth[i] >= baseline - 0.02:
+                # Check if there's another dip after this (= second swing)
+                remaining = smooth[i:]
+                if len(remaining) > 5 and np.min(remaining) < dip_threshold:
+                    second_swing_start = max(0, i - 2)
+                    break
+
+    if second_swing_start and second_swing_start < n * 0.9 and second_swing_start >= 15:
+        # Cut the video before the second swing
+        logger.info(f"Isolated first swing: keeping frames 0-{second_swing_start} of {n}")
+        return frames[:second_swing_start], poses[:second_swing_start]
 
     return frames, poses
 
@@ -149,7 +181,7 @@ def run_analysis(job_id: str):
         job_assets_dir.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Extract frames
-        frames = extract_frames(video_path, max_frames=100)
+        frames = extract_frames(video_path, max_frames=200)
         job["progress"] = 15
         job["message"] = f"Extracted {len(frames)} frames. Detecting poses..."
 
@@ -177,9 +209,6 @@ def run_analysis(job_id: str):
 
             # Normalize orientation
             frame = normalize_orientation(frame, landmarks)
-
-            # Re-detect after rotation if rotated
-            # (In practice, rotation may have changed landmark positions)
 
             # Compute metrics
             if landmarks:

@@ -92,6 +92,63 @@ def compute_angle(p1: Tuple[float, float], p2: Tuple[float, float], p3: Tuple[fl
     return float(np.degrees(np.arccos(np.clip(cos_angle, -1, 1))))
 
 
+def detect_handedness(landmarks: Dict[str, Tuple[float, float, float]]) -> str:
+    """Detect camera angle: face-on vs behind/down-the-line.
+
+    Face-on: shoulders have wide horizontal spread (we see full chest)
+    Behind:  shoulders are narrow horizontally (we see back, depth compressed)
+
+    We compare shoulder width to body height (shoulder-to-hip distance).
+    Face-on: width/height ratio is HIGH (~0.8-1.5+)
+    Behind:  width/height ratio is LOW (~0.2-0.5)
+
+    Returns 'standard' for behind/side views (most common for golf instruction),
+            'mirrored' for face-on views.
+    """
+    ls = landmarks.get("left_shoulder", (0.3, 0.3, 0))
+    rs = landmarks.get("right_shoulder", (0.7, 0.3, 0))
+    lh = landmarks.get("left_hip", (0.3, 0.6, 0))
+    rh = landmarks.get("right_hip", (0.7, 0.6, 0))
+
+    shoulder_width = abs(rs[0] - ls[0])
+    mid_s_y = (ls[1] + rs[1]) / 2
+    mid_h_y = (lh[1] + rh[1]) / 2
+    body_height = abs(mid_h_y - mid_s_y)
+
+    if body_height < 0.01:
+        return "standard"
+
+    ratio = shoulder_width / body_height
+    # Face-on typically shows ratio > 0.7, behind shows < 0.5
+    if ratio > 0.6:
+        return "mirrored"
+    return "standard"
+
+
+def normalize_metrics(metrics: Dict[str, float], handedness: str) -> Dict[str, float]:
+    """Swap left/right metrics if the camera view is mirrored.
+
+    This ensures 'left_arm_angle' always refers to the LEAD arm
+    regardless of camera angle.
+    """
+    if handedness == "standard":
+        return metrics
+
+    swaps = [
+        ("left_arm_angle", "right_arm_angle"),
+        ("left_knee_angle", "right_knee_angle"),
+        ("left_wrist_height", "right_wrist_height"),
+    ]
+    result = dict(metrics)
+    for a, b in swaps:
+        va = result.get(a)
+        vb = result.get(b)
+        if va is not None and vb is not None:
+            result[a] = vb
+            result[b] = va
+    return result
+
+
 def compute_body_metrics(landmarks: Dict[str, Tuple[float, float, float]]) -> Dict[str, float]:
     """Compute golf-relevant body metrics from landmarks."""
     metrics = {}

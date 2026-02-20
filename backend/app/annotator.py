@@ -161,24 +161,26 @@ def annotate_stage_frame(
     if landmarks:
         annotated = draw_skeleton(annotated, landmarks, color=skeleton_color)
 
-        callout_configs = _get_stage_callouts(stage)
-        callout_count = 0
-        for metric_name, joint_name, label in callout_configs:
-            if callout_count >= 3:
-                break
-            if metric_name in metric_scores and joint_name in landmarks:
-                score = metric_scores[metric_name]
-                is_good = score >= 70
-                pt = (int(landmarks[joint_name][0] * w), int(landmarks[joint_name][1] * h))
-                value = metrics.get(metric_name, 0)
-                text = f"{label}: {value:.0f}"
-                if "angle" in metric_name:
-                    text += "°"
-                elif "sway" in metric_name or "width" in metric_name:
-                    text = f"{label}: {'OK' if is_good else 'Check'}"
-                annotated = draw_callout(annotated, pt, text, is_good)
-                callout_count += 1
-    elif metric_scores:
+        # Only draw callouts for user frames, NOT reference
+        if not is_reference:
+            callout_configs = _get_stage_callouts(stage)
+            callout_count = 0
+            for metric_name, joint_name, label in callout_configs:
+                if callout_count >= 3:
+                    break
+                if metric_name in metric_scores and joint_name in landmarks:
+                    score = metric_scores[metric_name]
+                    is_good = score >= 70
+                    pt = (int(landmarks[joint_name][0] * w), int(landmarks[joint_name][1] * h))
+                    value = metrics.get(metric_name, 0)
+                    text = f"{label}: {value:.0f}"
+                    if "angle" in metric_name:
+                        text += "°"
+                    elif "sway" in metric_name or "width" in metric_name:
+                        text = f"{label}: {'OK' if is_good else 'Check'}"
+                    annotated = draw_callout(annotated, pt, text, is_good)
+                    callout_count += 1
+    elif metric_scores and not is_reference:
         # No landmarks but we have metrics – show metric overlay panel
         panel_y = h - 30 * min(len(metric_scores), 4) - 10
         cv2.rectangle(annotated, (10, panel_y - 5), (250, h - 5), (0, 0, 0), -1)
@@ -201,8 +203,8 @@ def annotate_stage_frame(
     cv2.putText(annotated, label_text, (10, 24),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, accent, 2, cv2.LINE_AA)
 
-    # === Score badge in top-right ===
-    if metric_scores:
+    # === Score badge in top-right (user only) ===
+    if metric_scores and not is_reference:
         avg_score = sum(metric_scores.values()) / len(metric_scores)
         badge_color = ARROW_COLOR_GOOD if avg_score >= 70 else (0, 180, 255) if avg_score >= 50 else ARROW_COLOR_BAD
         score_text = f"{avg_score:.0f}"

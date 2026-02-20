@@ -5,76 +5,80 @@ from .config import SWING_STAGES, STAGE_WEIGHTS, STAGE_DISPLAY_NAMES
 
 
 # Ideal ranges for metrics at each stage (min, ideal, max)
-# Ranges calibrated for both real MediaPipe output and demo metrics.
-# Angles in degrees. Normalized coords for positions.
+# Calibrated from Tiger Woods slow-motion swing (the gold standard).
+# Wide tolerance bands accommodate frame-to-frame variation, different
+# body types, and camera angles.  Pros should score 85-100; amateurs 25-60.
 STAGE_IDEAL_METRICS = {
     "address": {
-        "spine_angle": (0, 15, 45),
-        "left_knee_angle": (120, 165, 180),
-        "right_knee_angle": (120, 165, 180),
-        "stance_width": (0.005, 0.03, 0.50),
-        "head_sway": (0.0, 0.02, 0.10),
-        "shoulder_tilt": (-25, 0, 25),
+        "spine_angle": (0, 45, 90),
+        "left_knee_angle": (90, 136, 180),
+        "right_knee_angle": (80, 135, 180),
+        "head_sway": (0.0, 0.30, 0.65),
+        "shoulder_tilt": (-45, -5, 40),
     },
     "takeaway": {
-        "spine_angle": (0, 15, 45),
-        "left_arm_angle": (100, 160, 180),
-        "head_sway": (0.0, 0.03, 0.12),
-        "hip_shoulder_separation": (0, 10, 40),
+        "spine_angle": (0, 42, 85),
+        "left_arm_angle": (110, 175, 180),   # straight arm is ideal
+        "head_sway": (0.0, 0.30, 0.60),
+        "hip_shoulder_separation": (0, 10, 50),
     },
     "backswing": {
-        "spine_angle": (0, 15, 55),
-        "left_arm_angle": (80, 155, 180),
-        "hip_shoulder_separation": (0, 25, 60),
-        "shoulder_tilt": (-60, -20, 20),
+        "spine_angle": (0, 42, 85),
+        "left_arm_angle": (90, 160, 180),
+        "hip_shoulder_separation": (0, 16, 55),
+        "shoulder_tilt": (-65, -20, 25),
     },
     "top": {
-        "spine_angle": (0, 15, 55),
-        "left_arm_angle": (60, 140, 180),
-        "hip_shoulder_separation": (5, 35, 70),
-        "right_arm_angle": (30, 90, 175),
+        "spine_angle": (0, 45, 90),
+        "left_arm_angle": (90, 165, 180),     # straight arm is ideal
+        "hip_shoulder_separation": (0, 15, 55),
+        "right_arm_angle": (20, 85, 150),     # wider range, 90° is fine
     },
     "downswing": {
-        "spine_angle": (0, 15, 55),
-        "hip_shoulder_separation": (0, 30, 60),
-        "left_arm_angle": (80, 160, 180),
-        "head_sway": (0.0, 0.03, 0.12),
+        "spine_angle": (5, 50, 90),
+        "hip_shoulder_separation": (0, 11, 50),
+        "left_arm_angle": (80, 165, 180),     # straight arm is ideal
+        "head_sway": (0.0, 0.32, 0.65),
     },
     "impact": {
-        "spine_angle": (0, 15, 55),
-        "left_arm_angle": (100, 170, 180),
-        "hip_shoulder_separation": (5, 30, 60),
-        "head_sway": (0.0, 0.03, 0.12),
-        "left_knee_angle": (120, 165, 180),
+        "spine_angle": (5, 52, 90),
+        "left_arm_angle": (80, 150, 180),
+        "hip_shoulder_separation": (0, 8, 45),
+        "head_sway": (0.0, 0.30, 0.65),
+        "left_knee_angle": (85, 134, 180),
     },
     "follow_through": {
-        "spine_angle": (0, 20, 55),
-        "head_sway": (0.0, 0.05, 0.20),
+        "spine_angle": (0, 40, 85),
+        "left_arm_angle": (20, 100, 180),
+        "head_sway": (0.0, 0.28, 0.60),
     },
     "finish": {
-        "spine_angle": (0, 12, 45),
-        "head_sway": (0.0, 0.05, 0.20),
+        "spine_angle": (0, 30, 70),
+        "left_arm_angle": (20, 100, 175),
+        "head_sway": (0.0, 0.22, 0.55),
     },
 }
 
 
 def score_metric(value: float, ideal_range: Tuple[float, float, float]) -> float:
-    """Score a single metric on 0-100 scale.
+    """Score a single metric on 0-100 scale using gaussian-like falloff.
 
     ideal_range = (min_acceptable, ideal, max_acceptable)
-    Returns 100 at ideal, decreasing linearly toward min/max, 0 outside range.
+    Returns 100 at ideal, ~61 at min/max boundaries, gentle decay beyond.
     """
     min_val, ideal, max_val = ideal_range
     if abs(value - ideal) < 1e-6:
         return 100.0
-    if value < min_val:
-        return max(0.0, 100.0 * (1.0 - (min_val - value) / max(abs(ideal - min_val), 1e-6)))
-    if value > max_val:
-        return max(0.0, 100.0 * (1.0 - (value - max_val) / max(abs(max_val - ideal), 1e-6)))
+
+    # Use FULL range as sigma (generous — 61% at boundary, 13% at 2x range)
     if value <= ideal:
-        return 100.0 * (value - min_val) / (ideal - min_val + 1e-6)
+        sigma = (ideal - min_val) if (ideal - min_val) > 1e-6 else 1.0
     else:
-        return 100.0 * (max_val - value) / (max_val - ideal + 1e-6)
+        sigma = (max_val - ideal) if (max_val - ideal) > 1e-6 else 1.0
+
+    z = (value - ideal) / sigma
+    score = 100.0 * np.exp(-0.5 * z * z)
+    return max(0.0, min(100.0, score))
 
 
 def score_stage(stage: str, metrics: Dict[str, float]) -> Tuple[float, Dict[str, float]]:
