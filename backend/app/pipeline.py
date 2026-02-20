@@ -214,8 +214,12 @@ def run_analysis(job_id: str):
             ref_landmarks = None
 
             if ref_frame is not None:
-                # Resize reference to same dimensions as user frame (same aspect ratio)
-                ref_frame_resized = cv2.resize(ref_frame, user_size, interpolation=cv2.INTER_AREA)
+                # Resize reference preserving ITS OWN aspect ratio
+                rh, rw = ref_frame.shape[:2]
+                ref_scale = TARGET_WIDTH / rw
+                ref_h = int(rh * ref_scale)
+                ref_size = (TARGET_WIDTH, ref_h)
+                ref_frame_resized = cv2.resize(ref_frame, ref_size, interpolation=cv2.INTER_AREA)
                 # Detect pose on reference
                 ref_landmarks = pose.detect(ref_frame_resized)
                 if ref_landmarks:
