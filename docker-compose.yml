@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: golf-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - golf-data:/app/data
+    environment:
+      - GOLF_DATA_DIR=/app/data
+      - GOLF_MODEL_CACHE=/app/model_cache
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: golf-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  golf-data:

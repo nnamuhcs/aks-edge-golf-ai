@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: golf-backend-config
+  namespace: golf-ai
+data:
+  GOLF_DATA_DIR: "/app/data"
+  GOLF_REFERENCE_DIR: "/app/reference_data"
+  GOLF_MODEL_CACHE: "/app/model_cache"
+  MAX_UPLOAD_SIZE_MB: "200"
+  INFERENCE_DEVICE: "cpu"

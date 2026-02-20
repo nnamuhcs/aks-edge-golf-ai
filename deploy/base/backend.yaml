@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: golf-backend
+  namespace: golf-ai
+  labels:
+    app: golf-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: golf-backend
+  template:
+    metadata:
+      labels:
+        app: golf-backend
+    spec:
+      containers:
+        - name: backend
+          image: golf-swing-ai-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: golf-backend-config
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: model-cache
+              mountPath: /app/model_cache
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: golf-data-pvc
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: golf-model-cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: golf-backend
+  namespace: golf-ai
+spec:
+  selector:
+    app: golf-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
