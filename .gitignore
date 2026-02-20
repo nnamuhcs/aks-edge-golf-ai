@@ -37,3 +37,6 @@ desktop.ini
 backend/data/
 __pycache__/
 *.pyc
+sample_videos/mixkit_*.mp4
+sample_videos/real_golf_*.mp4
+backend/data/

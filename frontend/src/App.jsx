@@ -2,11 +2,12 @@ import { useState, useCallback } from 'react'
 import UploadPanel from './components/UploadPanel'
 import ProgressPanel from './components/ProgressPanel'
 import ResultsPanel from './components/ResultsPanel'
+import DashboardPanel from './components/DashboardPanel'
 
 const API_BASE = ''
 
 function App() {
-  const [view, setView] = useState('upload') // upload | progress | results
+  const [view, setView] = useState('upload') // upload | progress | results | dashboard
   const [videoUrl, setVideoUrl] = useState(null)
   const [jobId, setJobId] = useState(null)
   const [result, setResult] = useState(null)
@@ -51,10 +52,22 @@ function App() {
       <header className="header">
         <img src="/golf-icon.svg" alt="" className="header-icon" />
         <h1>Golf Swing <span>AI Analyzer</span></h1>
+        <nav className="header-nav">
+          <button
+            className={`nav-btn ${view !== 'dashboard' ? 'active' : ''}`}
+            onClick={handleReset}
+          >Analyzer</button>
+          <button
+            className={`nav-btn ${view === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setView('dashboard')}
+          >Dashboard</button>
+        </nav>
       </header>
 
       <main className="main">
         {error && <div className="error-message">{error}</div>}
+
+        {view === 'dashboard' && <DashboardPanel />}
 
         {view === 'upload' && (
           <UploadPanel onUpload={handleUpload} videoUrl={videoUrl} />

@@ -5,10 +5,10 @@ import threading
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 
 from .config import UPLOAD_DIR, ASSETS_DIR, MAX_UPLOAD_SIZE_MB
 from .pipeline import create_job, get_job, run_analysis
@@ -31,8 +31,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve generated assets
-app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+# Serve generated analysis assets (images)
+app.mount("/results-assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
 
 @app.get("/api/health")
@@ -122,3 +122,22 @@ async def get_result(job_id: str):
         raise HTTPException(500, f"Analysis failed: {job.get('error', 'Unknown error')}")
 
     return job["result"]
+
+
+# Serve frontend static files (built Vite app)
+_frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+if _frontend_dist.is_dir():
+    # Mount Vite's /assets (JS/CSS bundles) under /assets
+    _fe_assets = _frontend_dist / "assets"
+    if _fe_assets.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_fe_assets)), name="fe-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(request: Request, full_path: str):
+        """Serve the frontend SPA – any non-API path returns index.html."""
+        file_path = _frontend_dist / full_path
+        if full_path and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(_frontend_dist / "index.html")
+else:
+    logger.warning(f"Frontend dist not found at {_frontend_dist}. Run 'cd frontend && npm run build'")

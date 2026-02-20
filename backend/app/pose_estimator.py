@@ -15,26 +15,32 @@ LANDMARK_NAMES = {
     27: "left_ankle", 28: "right_ankle",
 }
 
-MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
+MODEL_URLS = {
+    "heavy": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task",
+    "full": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task",
+    "lite": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task",
+}
 
 
-def _ensure_model(cache_dir: str = None) -> str:
+def _ensure_model(cache_dir: str = None, variant: str = "heavy") -> str:
     """Download pose landmarker model if not already cached."""
     if cache_dir is None:
         cache_dir = os.environ.get("GOLF_MODEL_CACHE", "/tmp")
-    model_path = os.path.join(cache_dir, "pose_landmarker_lite.task")
+    model_name = f"pose_landmarker_{variant}.task"
+    model_path = os.path.join(cache_dir, model_name)
     if not os.path.exists(model_path):
         os.makedirs(cache_dir, exist_ok=True)
-        urllib.request.urlretrieve(MODEL_URL, model_path)
+        url = MODEL_URLS.get(variant, MODEL_URLS["heavy"])
+        urllib.request.urlretrieve(url, model_path)
     return model_path
 
 
 class PoseEstimator:
     """Wraps MediaPipe PoseLandmarker (Tasks API) for golf swing analysis."""
 
-    def __init__(self, model_path: str = None):
+    def __init__(self, model_path: str = None, variant: str = "heavy"):
         if model_path is None:
-            model_path = _ensure_model()
+            model_path = _ensure_model(variant=variant)
 
         BaseOptions = mp.tasks.BaseOptions
         PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
@@ -44,8 +50,8 @@ class PoseEstimator:
             base_options=BaseOptions(model_asset_path=model_path),
             running_mode=VisionRunningMode.IMAGE,
             num_poses=1,
-            min_pose_detection_confidence=0.5,
-            min_pose_presence_confidence=0.5,
+            min_pose_detection_confidence=0.2,
+            min_pose_presence_confidence=0.2,
         )
         self.landmarker = mp.tasks.vision.PoseLandmarker.create_from_options(options)
 
@@ -104,24 +110,39 @@ def compute_body_metrics(landmarks: Dict[str, Tuple[float, float, float]]) -> Di
     rw = landmarks.get("right_wrist", (0, 0, 0))
     nose = landmarks.get("nose", (0, 0, 0))
 
-    # Shoulder tilt (degrees from horizontal)
+    # Shoulder tilt (degrees from horizontal, normalized to small angle)
     shoulder_dx = rs[0] - ls[0]
     shoulder_dy = rs[1] - ls[1]
-    metrics["shoulder_tilt"] = float(np.degrees(np.arctan2(shoulder_dy, shoulder_dx + 1e-8)))
+    raw_shoulder = float(np.degrees(np.arctan2(shoulder_dy, shoulder_dx + 1e-8)))
+    # Normalize: 0° means level, positive = right shoulder lower
+    # Atan2 gives ~180° when shoulders are roughly horizontal in image coords
+    if abs(raw_shoulder) > 90:
+        metrics["shoulder_tilt"] = float(np.sign(raw_shoulder) * (180 - abs(raw_shoulder)))
+    else:
+        metrics["shoulder_tilt"] = raw_shoulder
 
-    # Hip tilt
+    # Hip tilt (same normalization)
     hip_dx = rh[0] - lh[0]
     hip_dy = rh[1] - lh[1]
-    metrics["hip_tilt"] = float(np.degrees(np.arctan2(hip_dy, hip_dx + 1e-8)))
+    raw_hip = float(np.degrees(np.arctan2(hip_dy, hip_dx + 1e-8)))
+    if abs(raw_hip) > 90:
+        metrics["hip_tilt"] = float(np.sign(raw_hip) * (180 - abs(raw_hip)))
+    else:
+        metrics["hip_tilt"] = raw_hip
 
     # Hip-shoulder separation (X-factor proxy)
     metrics["hip_shoulder_separation"] = abs(metrics["shoulder_tilt"] - metrics["hip_tilt"])
 
-    # Spine angle (mid-shoulder to mid-hip vs vertical)
+    # Spine angle (forward tilt from vertical)
+    # In MediaPipe: y=0 is top, y=1 is bottom
+    # So mid_h.y > mid_s.y when person is upright
     mid_s = ((ls[0] + rs[0]) / 2, (ls[1] + rs[1]) / 2)
     mid_h = ((lh[0] + rh[0]) / 2, (lh[1] + rh[1]) / 2)
-    spine_angle = float(np.degrees(np.arctan2(mid_s[0] - mid_h[0], mid_h[1] - mid_s[1] + 1e-8)))
-    metrics["spine_angle"] = abs(spine_angle)
+    dx = mid_s[0] - mid_h[0]
+    dy = mid_s[1] - mid_h[1]  # negative when upright (shoulders above hips)
+    # Angle from vertical: 0° = perfectly upright, 30° = typical address bend
+    spine_angle = float(np.degrees(np.arctan2(abs(dx), abs(dy) + 1e-8)))
+    metrics["spine_angle"] = spine_angle
 
     # Knee flex (left)
     metrics["left_knee_angle"] = compute_angle(lh[:2], lk[:2], la[:2])

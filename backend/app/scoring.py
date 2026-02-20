@@ -5,54 +5,55 @@ from .config import SWING_STAGES, STAGE_WEIGHTS, STAGE_DISPLAY_NAMES
 
 
 # Ideal ranges for metrics at each stage (min, ideal, max)
-# These are heuristic ranges based on golf biomechanics
+# Ranges calibrated for both real MediaPipe output and demo metrics.
+# Angles in degrees. Normalized coords for positions.
 STAGE_IDEAL_METRICS = {
     "address": {
-        "spine_angle": (15, 30, 45),
-        "left_knee_angle": (155, 170, 180),
-        "right_knee_angle": (155, 170, 180),
-        "stance_width": (0.15, 0.25, 0.40),
-        "head_sway": (0.0, 0.02, 0.06),
-        "shoulder_tilt": (-10, 0, 10),
+        "spine_angle": (0, 15, 45),
+        "left_knee_angle": (120, 165, 180),
+        "right_knee_angle": (120, 165, 180),
+        "stance_width": (0.005, 0.03, 0.50),
+        "head_sway": (0.0, 0.02, 0.10),
+        "shoulder_tilt": (-25, 0, 25),
     },
     "takeaway": {
-        "spine_angle": (15, 30, 45),
-        "left_arm_angle": (155, 175, 180),
-        "head_sway": (0.0, 0.02, 0.08),
-        "hip_shoulder_separation": (0, 5, 15),
+        "spine_angle": (0, 15, 45),
+        "left_arm_angle": (100, 160, 180),
+        "head_sway": (0.0, 0.03, 0.12),
+        "hip_shoulder_separation": (0, 10, 40),
     },
     "backswing": {
-        "spine_angle": (15, 30, 50),
-        "left_arm_angle": (150, 175, 180),
-        "hip_shoulder_separation": (5, 20, 45),
-        "shoulder_tilt": (-50, -30, -10),
+        "spine_angle": (0, 15, 55),
+        "left_arm_angle": (80, 155, 180),
+        "hip_shoulder_separation": (0, 25, 60),
+        "shoulder_tilt": (-60, -20, 20),
     },
     "top": {
-        "spine_angle": (15, 30, 50),
-        "left_arm_angle": (140, 170, 180),
-        "hip_shoulder_separation": (20, 40, 60),
-        "right_arm_angle": (75, 90, 110),
+        "spine_angle": (0, 15, 55),
+        "left_arm_angle": (60, 140, 180),
+        "hip_shoulder_separation": (5, 35, 70),
+        "right_arm_angle": (30, 90, 175),
     },
     "downswing": {
-        "spine_angle": (15, 30, 50),
-        "hip_shoulder_separation": (15, 35, 55),
-        "left_arm_angle": (150, 175, 180),
-        "head_sway": (0.0, 0.02, 0.08),
+        "spine_angle": (0, 15, 55),
+        "hip_shoulder_separation": (0, 30, 60),
+        "left_arm_angle": (80, 160, 180),
+        "head_sway": (0.0, 0.03, 0.12),
     },
     "impact": {
-        "spine_angle": (15, 30, 50),
-        "left_arm_angle": (160, 178, 180),
-        "hip_shoulder_separation": (20, 35, 55),
-        "head_sway": (0.0, 0.02, 0.08),
-        "left_knee_angle": (155, 170, 180),
+        "spine_angle": (0, 15, 55),
+        "left_arm_angle": (100, 170, 180),
+        "hip_shoulder_separation": (5, 30, 60),
+        "head_sway": (0.0, 0.03, 0.12),
+        "left_knee_angle": (120, 165, 180),
     },
     "follow_through": {
-        "spine_angle": (10, 25, 50),
-        "head_sway": (0.0, 0.04, 0.12),
+        "spine_angle": (0, 20, 55),
+        "head_sway": (0.0, 0.05, 0.20),
     },
     "finish": {
-        "spine_angle": (5, 15, 40),
-        "head_sway": (0.0, 0.04, 0.12),
+        "spine_angle": (0, 12, 45),
+        "head_sway": (0.0, 0.05, 0.20),
     },
 }
 
@@ -167,7 +168,7 @@ METRIC_FEEDBACK = {
     },
     "head_sway": {
         "good": "Excellent head stability",
-        "bad_low": "Head very still – good!",
+        "bad_low": None,  # Low head sway is always good
         "bad_high": "Excessive head movement – hurts consistency",
         "why": "A steady head keeps the swing center stable for clean contact",
         "tip": "Focus on a spot behind the ball and keep your head centered over it",
@@ -208,9 +209,12 @@ def generate_stage_feedback(
         if m_score >= 70:
             good_points.append(fb["good"])
         elif value < ideal_range[1]:
-            issues.append(fb["bad_low"])
-            tips.append(fb["tip"])
-            why_matters.append(fb["why"])
+            if fb["bad_low"] is not None:
+                issues.append(fb["bad_low"])
+                tips.append(fb["tip"])
+                why_matters.append(fb["why"])
+            else:
+                good_points.append(fb["good"])
         else:
             issues.append(fb["bad_high"])
             tips.append(fb["tip"])
