@@ -167,6 +167,7 @@ def _isolate_first_swing(frames, poses):
 
 def run_analysis(job_id: str):
     """Run the full analysis pipeline for a job. Designed to run in a background thread."""
+    from .main import log_activity
     job = _jobs.get(job_id)
     if not job:
         return
@@ -175,6 +176,7 @@ def run_analysis(job_id: str):
         job["status"] = "processing"
         job["progress"] = 5
         job["message"] = "Extracting video frames..."
+        log_activity("pipeline", "Extracting video frames", f"Job {job_id[:8]} — ffmpeg decode")
 
         video_path = UPLOAD_DIR / job["video_filename"]
         job_assets_dir = ASSETS_DIR / job_id
@@ -184,18 +186,21 @@ def run_analysis(job_id: str):
         frames = extract_frames(video_path, max_frames=200)
         job["progress"] = 15
         job["message"] = f"Extracted {len(frames)} frames. Detecting poses..."
+        log_activity("pipeline", f"Extracted {len(frames)} frames", "Two-pass swing detection complete")
 
         # Step 2: Pose estimation
         pose = _get_pose_estimator()
         poses = pose.detect_batch(frames)
         job["progress"] = 35
         job["message"] = "Poses detected. Segmenting swing stages..."
+        log_activity("model", "MediaPipe pose estimation done", f"{len(frames)} frames processed")
 
         # Step 3: Isolate first swing, then segment stages
         frames, poses = _isolate_first_swing(frames, poses)
         stage_indices = segment_swing_stages(poses, len(frames), frames=frames)
         job["progress"] = 45
         job["message"] = "Stages segmented. Analyzing each stage..."
+        log_activity("pipeline", "Swing stages segmented", "Anchor-based detection: impact→top→address→finish")
 
         # Step 4: Per-stage analysis
         ref_mgr = _get_reference_manager()
@@ -282,6 +287,7 @@ def run_analysis(job_id: str):
             progress = 45 + int(45 * (i + 1) / len(SWING_STAGES))
             job["progress"] = progress
             job["message"] = f"Analyzed {STAGE_DISPLAY_NAMES[stage]}..."
+            log_activity("analysis", f"Stage: {STAGE_DISPLAY_NAMES[stage]}", f"Score: {stage_score:.0f}/100")
 
         # Step 5: Overall score
         overall_score = compute_overall_score(all_stage_scores)
@@ -312,6 +318,7 @@ def run_analysis(job_id: str):
         job["progress"] = 100
         job["message"] = "Analysis complete!"
         job["result"] = result
+        log_activity("complete", f"Analysis complete — Score: {overall_score:.0f}/100", f"Job {job_id[:8]}")
 
     except Exception as e:
         logger.error(f"Analysis failed for job {job_id}: {e}\n{traceback.format_exc()}")

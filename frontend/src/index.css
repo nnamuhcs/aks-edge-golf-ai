@@ -41,25 +41,39 @@ body {
 .header {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
-  padding: 16px 24px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .header-icon {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
 }
 
 .header h1 {
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: var(--color-text);
+  line-height: 1.2;
 }
 
 .header h1 span {
   color: var(--color-primary);
+}
+
+.header-subtitle {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  margin-top: 1px;
 }
 
 .header-nav {
@@ -69,15 +83,16 @@ body {
 }
 
 .nav-btn {
-  padding: 8px 16px;
+  padding: 7px 14px;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: transparent;
   color: var(--color-text-secondary);
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   transition: all 0.2s;
+  font-family: var(--font);
 }
 
 .nav-btn:hover {
@@ -92,6 +107,14 @@ body {
   border-color: var(--color-primary);
 }
 
+/* App body layout */
+.app-body {
+  display: flex;
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
 /* Main Content */
 .main {
   flex: 1;
@@ -99,6 +122,8 @@ body {
   width: 100%;
   margin: 0 auto;
   padding: 32px 24px;
+  transition: margin-right 0.3s ease;
+  min-width: 0;
 }
 
 /* Upload Area */
@@ -455,4 +480,620 @@ body {
   color: var(--color-error);
   text-align: center;
   margin-top: 16px;
+}
+
+/* ─── K8s Toggle Button ─── */
+.k8s-toggle {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: var(--font);
+  transition: all 0.2s;
+  writing-mode: horizontal-tb;
+}
+
+.k8s-toggle:hover {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.k8s-toggle.open {
+  right: 340px;
+}
+
+.k8s-toggle-icon {
+  font-size: 1.1rem;
+}
+
+.k8s-toggle-label {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.k8s-toggle-arrow {
+  font-size: 0.65rem;
+  opacity: 0.6;
+}
+
+/* ─── K8s Panel ─── */
+.k8s-panel {
+  position: fixed;
+  right: -340px;
+  top: 0;
+  bottom: 0;
+  width: 340px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-left: 1px solid #1e293b;
+  z-index: 190;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s ease;
+  font-size: 0.8rem;
+  overflow: hidden;
+}
+
+.k8s-panel.open {
+  right: 0;
+}
+
+.k8s-panel-header {
+  padding: 16px;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.k8s-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #f1f5f9;
+}
+
+.k8s-panel-ns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.k8s-env-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.k8s-env-badge.k8s {
+  background: #0ea5e9;
+  color: white;
+}
+
+.k8s-env-badge.local {
+  background: #6366f1;
+  color: white;
+}
+
+.k8s-ns-label {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+}
+
+/* ─── K8s Sections ─── */
+.k8s-section {
+  padding: 12px 16px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.k8s-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.k8s-activity-count {
+  background: #059669;
+  color: white;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+/* ─── K8s Components ─── */
+.k8s-component-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.k8s-component {
+  background: #1e293b;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.k8s-comp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.k8s-comp-icon {
+  font-size: 0.85rem;
+}
+
+.k8s-comp-name {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: #f1f5f9;
+  flex: 1;
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+}
+
+.k8s-comp-status {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.k8s-comp-status.ready {
+  background: rgba(5, 150, 105, 0.2);
+  color: #34d399;
+}
+
+.k8s-comp-status.not-ready {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.k8s-comp-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.65rem;
+  color: #64748b;
+}
+
+.k8s-comp-kind {
+  background: #334155;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+}
+
+.k8s-comp-info {
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+  font-size: 0.62rem;
+}
+
+.k8s-comp-uptime {
+  color: #64748b;
+  font-size: 0.62rem;
+}
+
+/* ─── K8s Activity Feed ─── */
+.k8s-activity-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-bottom: none;
+}
+
+.k8s-activity-feed {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+
+.k8s-activity-feed::-webkit-scrollbar {
+  width: 4px;
+}
+
+.k8s-activity-feed::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 2px;
+}
+
+.k8s-activity-empty {
+  color: #475569;
+  font-size: 0.72rem;
+  padding: 16px 0;
+  text-align: center;
+  font-style: italic;
+}
+
+.k8s-activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.k8s-activity-item:hover {
+  background: #1e293b;
+}
+
+.k8s-act-icon {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.k8s-act-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.k8s-act-msg {
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  line-height: 1.3;
+}
+
+.k8s-act-detail {
+  font-size: 0.62rem;
+  color: #64748b;
+  margin-top: 1px;
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+}
+
+.k8s-act-time {
+  font-size: 0.6rem;
+  color: #475569;
+  flex-shrink: 0;
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+  margin-top: 2px;
+}
+
+/* ─── Layout shift when K8s panel open ─── */
+.app.k8s-open .app-body .main {
+  margin-right: 0;
+}
+
+@media (max-width: 900px) {
+  .k8s-panel { width: 280px; }
+  .k8s-toggle.open { right: 280px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Architecture Page — Obsidian Canvas Style
+   ═══════════════════════════════════════════════════════════════ */
+
+.arch-page {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.arch-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.arch-back-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-family: var(--font);
+  transition: all 0.2s;
+}
+
+.arch-back-btn:hover {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.arch-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.arch-desc {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+/* Legend */
+.arch-legend {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.arch-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.arch-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* Canvas (flowchart) */
+.arch-canvas {
+  position: relative;
+  background: #0f172a;
+  border-radius: var(--radius);
+  border: 1px solid #1e293b;
+  min-height: 500px;
+  padding: 24px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  /* Subtle dot grid like Obsidian */
+  background-image: radial-gradient(circle, #1e293b 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.arch-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.arch-edge-glow {
+  filter: drop-shadow(0 0 4px rgba(16,185,129,0.4));
+}
+
+/* Nodes */
+.arch-node {
+  position: absolute;
+  border: 1.5px solid;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+
+.arch-node:hover, .arch-node.hovered {
+  transform: translateX(-50%) scale(1.04);
+  z-index: 10;
+}
+
+.arch-node.selected {
+  transform: translateX(-50%) scale(1.06);
+  z-index: 10;
+}
+
+.arch-node-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  white-space: nowrap;
+}
+
+.arch-node-desc {
+  font-size: 0.6rem;
+  color: #94a3b8;
+  margin-top: 3px;
+  line-height: 1.35;
+  max-width: 180px;
+}
+
+/* K8s Architecture Section */
+.arch-k8s-section, .arch-stack-section, .arch-flow-section {
+  margin-bottom: 24px;
+}
+
+.arch-section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arch-k8s-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.arch-k8s-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: all 0.2s;
+}
+
+.arch-k8s-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 12px rgba(5,150,105,0.08);
+}
+
+.arch-k8s-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.arch-k8s-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+}
+
+.arch-k8s-kind {
+  font-size: 0.65rem;
+  color: var(--color-primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.arch-k8s-desc {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* Tech Stack */
+.arch-stack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.arch-stack-card {
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.arch-stack-category {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 10px;
+}
+
+.arch-stack-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.arch-stack-tag {
+  padding: 3px 10px;
+  background: #f0fdf4;
+  color: #065f46;
+  border: 1px solid #bbf7d0;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+/* Data Flow */
+.arch-flow-steps {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.arch-flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 110px;
+  padding: 14px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.arch-flow-step:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 12px rgba(5,150,105,0.1);
+  transform: translateY(-2px);
+}
+
+.arch-flow-num {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 22px;
+  height: 22px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 50%;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.arch-flow-icon {
+  font-size: 1.3rem;
+  margin-bottom: 6px;
+}
+
+.arch-flow-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 4px;
+}
+
+.arch-flow-desc {
+  font-size: 0.62rem;
+  color: var(--color-text-secondary);
+  line-height: 1.3;
+}
+
+.arch-flow-arrow {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .arch-canvas { min-height: 400px; }
+  .arch-node-desc { display: none; }
+  .arch-k8s-grid { grid-template-columns: 1fr; }
+  .arch-stack-grid { grid-template-columns: 1fr 1fr; }
 }

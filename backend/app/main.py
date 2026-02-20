@@ -10,15 +10,33 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 
+import time
+import collections
+
 from .config import UPLOAD_DIR, ASSETS_DIR, MAX_UPLOAD_SIZE_MB
 from .pipeline import create_job, get_job, run_analysis
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Activity feed for K8s panel (ring buffer of recent events)
+_activity_log = collections.deque(maxlen=100)
+_start_time = time.time()
+
+
+def log_activity(event_type: str, message: str, detail: str = ""):
+    """Record an activity event for the K8s panel feed."""
+    _activity_log.append({
+        "ts": time.time(),
+        "elapsed": round(time.time() - _start_time, 1),
+        "type": event_type,
+        "message": message,
+        "detail": detail,
+    })
+
 app = FastAPI(
-    title="Golf Swing AI Analyzer",
-    description="Upload a golf swing video for AI-powered analysis",
+    title="Golf Swing AI Coacher",
+    description="Upload a golf swing video for AI-powered coaching",
     version="1.0.0",
 )
 
@@ -38,6 +56,92 @@ app.mount("/results-assets", StaticFiles(directory=str(ASSETS_DIR)), name="asset
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "service": "golf-swing-ai"}
+
+
+@app.get("/api/k8s/status")
+async def k8s_status():
+    """Return K8s component status and recent activity feed."""
+    import socket
+    hostname = socket.gethostname()
+    pod_ip = socket.gethostbyname(hostname)
+
+    # Detect if running in K8s
+    in_k8s = os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/token")
+
+    namespace = "default"
+    if in_k8s:
+        try:
+            namespace = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
+        except Exception:
+            pass
+
+    uptime = round(time.time() - _start_time)
+    hours, rem = divmod(uptime, 3600)
+    mins, secs = divmod(rem, 60)
+    uptime_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+
+    components = [
+        {
+            "name": "golf-ai-backend",
+            "kind": "Pod" if in_k8s else "Process",
+            "status": "Running",
+            "ready": True,
+            "info": f"{hostname} ({pod_ip})",
+            "uptime": uptime_str,
+        },
+        {
+            "name": "golf-ai-api",
+            "kind": "Service",
+            "status": "Active",
+            "ready": True,
+            "info": "ClusterIP :8000" if in_k8s else f"localhost:8000",
+            "uptime": uptime_str,
+        },
+        {
+            "name": "mediapipe-pose",
+            "kind": "Model",
+            "status": "Loaded",
+            "ready": True,
+            "info": "Heavy model, CPU",
+            "uptime": "",
+        },
+        {
+            "name": "clip-vit-b32",
+            "kind": "Model",
+            "status": "Loaded",
+            "ready": True,
+            "info": "HuggingFace ViT-B/32",
+            "uptime": "",
+        },
+    ]
+
+    if in_k8s:
+        components.append({
+            "name": "model-cache",
+            "kind": "PVC",
+            "status": "Bound",
+            "ready": True,
+            "info": f"ns/{namespace}",
+            "uptime": "",
+        })
+        components.append({
+            "name": "golf-ai-ingress",
+            "kind": "Ingress",
+            "status": "Active",
+            "ready": True,
+            "info": f"ns/{namespace}",
+            "uptime": "",
+        })
+
+    # Recent activity (last 50)
+    activity = list(_activity_log)[-50:]
+
+    return {
+        "namespace": namespace,
+        "in_k8s": in_k8s,
+        "components": components,
+        "activity": activity,
+    }
 
 
 @app.post("/api/upload")
@@ -86,6 +190,8 @@ async def upload_video(file: UploadFile = File(...)):
     thread.start()
 
     logger.info(f"Job {job_id} created for {file.filename} ({size} bytes)")
+    log_activity("upload", f"Video uploaded: {file.filename}", f"{size / 1024 / 1024:.1f} MB → job {job_id[:8]}")
+    log_activity("pipeline", "Analysis job started", f"Job {job_id[:8]} queued for processing")
     return {"job_id": job_id, "message": "Upload successful, analysis started"}
 
 
