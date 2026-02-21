@@ -127,30 +127,6 @@ async def k8s_status():
                 "info": f"{hostname} ({pod_ip})",
                 "uptime": uptime_str,
             },
-            {
-                "name": "golf-backend",
-                "kind": "Service",
-                "status": "Running",
-                "ready": True,
-                "info": "localhost:8000",
-                "uptime": uptime_str,
-            },
-            {
-                "name": "mediapipe-pose",
-                "kind": "Model",
-                "status": "Running",
-                "ready": True,
-                "info": "Heavy model, CPU",
-                "uptime": "",
-            },
-            {
-                "name": "clip-vit-b32",
-                "kind": "Model",
-                "status": "Running",
-                "ready": True,
-                "info": "HuggingFace ViT-B/32",
-                "uptime": "",
-            },
         ]
 
     # Recent activity (last 20 key events only)
@@ -220,26 +196,6 @@ def _query_k8s_resources(namespace: str, hostname: str, pod_ip: str, uptime_str:
         except Exception as e:
             logger.warning(f"Failed to list pods: {e}")
 
-        # Services
-        try:
-            svcs = v1.list_namespaced_service(namespace)
-            for s in svcs.items:
-                svc_type = s.spec.type or "ClusterIP"
-                ports = ", ".join(
-                    f"{p.port}" + (f":{p.node_port}" if p.node_port else "")
-                    for p in (s.spec.ports or [])
-                )
-                components.append({
-                    "name": s.metadata.name,
-                    "kind": "Service",
-                    "status": svc_type,
-                    "ready": True,
-                    "info": f"{svc_type} port {ports}",
-                    "uptime": "",
-                })
-        except Exception as e:
-            logger.warning(f"Failed to list services: {e}")
-
         # PVCs
         try:
             pvcs = v1.list_namespaced_persistent_volume_claim(namespace)
@@ -258,24 +214,6 @@ def _query_k8s_resources(namespace: str, hostname: str, pod_ip: str, uptime_str:
                 })
         except Exception as e:
             logger.warning(f"Failed to list PVCs: {e}")
-
-        # Always add ML models (not K8s resources but useful context)
-        components.append({
-            "name": "mediapipe-pose",
-            "kind": "Model",
-            "status": "Running",
-            "ready": True,
-            "info": "Heavy model, CPU",
-            "uptime": "",
-        })
-        components.append({
-            "name": "clip-vit-b32",
-            "kind": "Model",
-            "status": "Running",
-            "ready": True,
-            "info": "HuggingFace ViT-B/32",
-            "uptime": "",
-        })
 
     except ImportError:
         logger.warning("kubernetes package not installed, falling back to static list")

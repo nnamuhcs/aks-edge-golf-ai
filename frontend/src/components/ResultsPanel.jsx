@@ -45,8 +45,10 @@ function ResultsPanel({ result, onReset }) {
             className={`stage-tab ${idx === selectedStage ? 'active' : ''} ${showHint && idx !== selectedStage ? 'hint-pulse' : ''}`}
             onClick={() => setSelectedStage(idx)}
           >
-            {s.display_name}
+            <span className="stage-num">{idx + 1}</span>
+            <span className="stage-name">{s.display_name}</span>
             <span className="stage-score">{Math.round(s.score)}</span>
+            {idx === selectedStage && <span className="stage-indicator" />}
           </button>
         ))}
       </div>
