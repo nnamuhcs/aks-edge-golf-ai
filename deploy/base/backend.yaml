@@ -15,6 +15,7 @@ spec:
       labels:
         app: golf-backend
     spec:
+      serviceAccountName: golf-backend-sa
       containers:
         - name: backend
           image: ghcr.io/nnamuhcs/golf-ai-backend:latest

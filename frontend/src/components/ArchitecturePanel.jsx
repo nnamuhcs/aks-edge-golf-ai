@@ -28,13 +28,15 @@ const EDGES = [
 ]
 
 const K8S_COMPONENTS = [
-  { icon: '☸', name: 'AKS Edge',           kind: 'Cluster',             desc: 'Lightweight K8s on edge devices' },
-  { icon: '📦', name: 'golf-ai-backend',    kind: 'Deployment',          desc: 'FastAPI + ML pipeline container' },
-  { icon: '🔗', name: 'golf-ai-api',        kind: 'Service',             desc: 'ClusterIP → port 8000' },
-  { icon: '🌐', name: 'golf-ai-ingress',    kind: 'Ingress',             desc: 'External access routing' },
-  { icon: '💾', name: 'model-cache-pvc',     kind: 'PersistentVolumeClaim', desc: 'MediaPipe + CLIP model weights' },
-  { icon: '⚙️', name: 'golf-ai-config',      kind: 'ConfigMap',           desc: 'Runtime settings & thresholds' },
-  { icon: '📁', name: 'results-pvc',         kind: 'PersistentVolumeClaim', desc: 'Generated analysis assets' },
+  { icon: '☸', name: 'AKS Edge',              kind: 'Cluster',              desc: 'Kubernetes on edge devices' },
+  { icon: '📦', name: 'golf-backend',          kind: 'Deployment',           desc: 'FastAPI + ML pipeline container' },
+  { icon: '📦', name: 'golf-frontend',         kind: 'Deployment',           desc: 'Nginx serving React SPA' },
+  { icon: '🔗', name: 'golf-backend',          kind: 'Service',              desc: 'ClusterIP port 8000' },
+  { icon: '🔗', name: 'golf-frontend',         kind: 'Service',              desc: 'NodePort 30080' },
+  { icon: '💾', name: 'golf-model-cache-pvc',  kind: 'PersistentVolumeClaim', desc: 'MediaPipe + CLIP model weights' },
+  { icon: '💾', name: 'golf-data-pvc',         kind: 'PersistentVolumeClaim', desc: 'Uploads and analysis results' },
+  { icon: '⚙️', name: 'golf-backend-config',   kind: 'ConfigMap',            desc: 'Runtime settings' },
+  { icon: '🔑', name: 'golf-backend-sa',       kind: 'ServiceAccount',       desc: 'RBAC for K8s API access' },
 ]
 
 const TECH_STACK = [

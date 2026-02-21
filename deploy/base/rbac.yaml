@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: golf-backend-sa
+  namespace: golf-ai
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: golf-backend-reader
+  namespace: golf-ai
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "persistentvolumeclaims"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: golf-backend-reader-binding
+  namespace: golf-ai
+subjects:
+  - kind: ServiceAccount
+    name: golf-backend-sa
+    namespace: golf-ai
+roleRef:
+  kind: Role
+  name: golf-backend-reader
+  apiGroup: rbac.authorization.k8s.io

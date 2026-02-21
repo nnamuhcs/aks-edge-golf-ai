@@ -86,7 +86,7 @@ async def k8s_status():
     mins, secs = divmod(rem, 60)
     uptime_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
 
-    # ── Real system metrics ──
+    # Real system metrics
     cpu_percent = psutil.cpu_percent(interval=0)
     mem = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
@@ -111,58 +111,47 @@ async def k8s_status():
         "proc_mem_mb": round(proc_mem.rss / (1024**2), 1),
     }
 
-    components = [
-        {
-            "name": "golf-ai-backend",
-            "kind": "Pod" if in_k8s else "Process",
-            "status": "Running",
-            "ready": True,
-            "info": f"{hostname} ({pod_ip})",
-            "uptime": uptime_str,
-        },
-        {
-            "name": "golf-ai-api",
-            "kind": "Service",
-            "status": "Running",
-            "ready": True,
-            "info": "ClusterIP :8000" if in_k8s else f"localhost:8000",
-            "uptime": uptime_str,
-        },
-        {
-            "name": "mediapipe-pose",
-            "kind": "Model",
-            "status": "Running",
-            "ready": True,
-            "info": "Heavy model, CPU",
-            "uptime": "",
-        },
-        {
-            "name": "clip-vit-b32",
-            "kind": "Model",
-            "status": "Running",
-            "ready": True,
-            "info": "HuggingFace ViT-B/32",
-            "uptime": "",
-        },
-    ]
+    components = []
 
     if in_k8s:
-        components.append({
-            "name": "model-cache",
-            "kind": "PVC",
-            "status": "Running",
-            "ready": True,
-            "info": f"ns/{namespace}",
-            "uptime": "",
-        })
-        components.append({
-            "name": "golf-ai-ingress",
-            "kind": "Ingress",
-            "status": "Running",
-            "ready": True,
-            "info": f"ns/{namespace}",
-            "uptime": "",
-        })
+        # Query real K8s API for live resource discovery
+        components = _query_k8s_resources(namespace, hostname, pod_ip, uptime_str)
+    else:
+        # Local/dev fallback
+        components = [
+            {
+                "name": hostname,
+                "kind": "Process",
+                "status": "Running",
+                "ready": True,
+                "info": f"{hostname} ({pod_ip})",
+                "uptime": uptime_str,
+            },
+            {
+                "name": "golf-backend",
+                "kind": "Service",
+                "status": "Running",
+                "ready": True,
+                "info": "localhost:8000",
+                "uptime": uptime_str,
+            },
+            {
+                "name": "mediapipe-pose",
+                "kind": "Model",
+                "status": "Running",
+                "ready": True,
+                "info": "Heavy model, CPU",
+                "uptime": "",
+            },
+            {
+                "name": "clip-vit-b32",
+                "kind": "Model",
+                "status": "Running",
+                "ready": True,
+                "info": "HuggingFace ViT-B/32",
+                "uptime": "",
+            },
+        ]
 
     # Recent activity (last 20 key events only)
     activity = list(_activity_log)[-20:]
@@ -174,6 +163,134 @@ async def k8s_status():
         "metrics": metrics,
         "activity": activity,
     }
+
+
+def _query_k8s_resources(namespace: str, hostname: str, pod_ip: str, uptime_str: str) -> list:
+    """Query the K8s API for real pods, services, and PVCs in the namespace."""
+    components = []
+    try:
+        from kubernetes import client, config
+        config.load_incluster_config()
+        v1 = client.CoreV1Api()
+        apps_v1 = client.AppsV1Api()
+
+        # Deployments
+        try:
+            deps = apps_v1.list_namespaced_deployment(namespace)
+            for d in deps.items:
+                ready = d.status.ready_replicas or 0
+                desired = d.spec.replicas or 1
+                components.append({
+                    "name": d.metadata.name,
+                    "kind": "Deployment",
+                    "status": "Running" if ready >= desired else "Pending",
+                    "ready": ready >= desired,
+                    "info": f"{ready}/{desired} replicas",
+                    "uptime": "",
+                })
+        except Exception as e:
+            logger.warning(f"Failed to list deployments: {e}")
+
+        # Pods
+        try:
+            pods = v1.list_namespaced_pod(namespace)
+            for p in pods.items:
+                phase = p.status.phase or "Unknown"
+                ready_count = sum(1 for cs in (p.status.container_statuses or []) if cs.ready)
+                total = len(p.spec.containers)
+                pod_started = p.status.start_time
+                pod_uptime = ""
+                if pod_started:
+                    import datetime
+                    now = datetime.datetime.now(datetime.timezone.utc)
+                    delta = now - pod_started
+                    h, rem = divmod(int(delta.total_seconds()), 3600)
+                    m, s = divmod(rem, 60)
+                    pod_uptime = f"{h}h {m}m" if h else f"{m}m {s}s"
+                node = p.spec.node_name or ""
+                pod_pod_ip = p.status.pod_ip or ""
+                components.append({
+                    "name": p.metadata.name,
+                    "kind": "Pod",
+                    "status": phase,
+                    "ready": ready_count == total and phase == "Running",
+                    "info": f"{pod_pod_ip} on {node}" if node else pod_pod_ip,
+                    "uptime": pod_uptime,
+                })
+        except Exception as e:
+            logger.warning(f"Failed to list pods: {e}")
+
+        # Services
+        try:
+            svcs = v1.list_namespaced_service(namespace)
+            for s in svcs.items:
+                svc_type = s.spec.type or "ClusterIP"
+                ports = ", ".join(
+                    f"{p.port}" + (f":{p.node_port}" if p.node_port else "")
+                    for p in (s.spec.ports or [])
+                )
+                components.append({
+                    "name": s.metadata.name,
+                    "kind": "Service",
+                    "status": svc_type,
+                    "ready": True,
+                    "info": f"{svc_type} port {ports}",
+                    "uptime": "",
+                })
+        except Exception as e:
+            logger.warning(f"Failed to list services: {e}")
+
+        # PVCs
+        try:
+            pvcs = v1.list_namespaced_persistent_volume_claim(namespace)
+            for pvc in pvcs.items:
+                phase = pvc.status.phase or "Pending"
+                capacity = ""
+                if pvc.status.capacity:
+                    capacity = pvc.status.capacity.get("storage", "")
+                components.append({
+                    "name": pvc.metadata.name,
+                    "kind": "PVC",
+                    "status": phase,
+                    "ready": phase == "Bound",
+                    "info": capacity if capacity else "binding",
+                    "uptime": "",
+                })
+        except Exception as e:
+            logger.warning(f"Failed to list PVCs: {e}")
+
+        # Always add ML models (not K8s resources but useful context)
+        components.append({
+            "name": "mediapipe-pose",
+            "kind": "Model",
+            "status": "Running",
+            "ready": True,
+            "info": "Heavy model, CPU",
+            "uptime": "",
+        })
+        components.append({
+            "name": "clip-vit-b32",
+            "kind": "Model",
+            "status": "Running",
+            "ready": True,
+            "info": "HuggingFace ViT-B/32",
+            "uptime": "",
+        })
+
+    except ImportError:
+        logger.warning("kubernetes package not installed, falling back to static list")
+        components = [
+            {"name": hostname, "kind": "Pod", "status": "Running", "ready": True,
+             "info": f"{hostname} ({pod_ip})", "uptime": uptime_str},
+        ]
+    except Exception as e:
+        logger.warning(f"K8s API query failed: {e}, falling back to static list")
+        components = [
+            {"name": hostname, "kind": "Pod", "status": "Running", "ready": True,
+             "info": f"{hostname} ({pod_ip})", "uptime": uptime_str},
+        ]
+
+    return components
 
 
 @app.post("/api/k8s/clear-activity")
