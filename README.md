@@ -4,15 +4,15 @@ A production-grade, containerized golf swing analyzer powered by AI — built fo
 
 ## Features
 
-- 🎥 **Video Upload** – Drag & drop or browse; supports MP4, MOV, AVI, WebM
-- 🤖 **AI Analysis** – MediaPipe pose estimation + CLIP embedding matching (all local, no cloud APIs)
-- 📊 **8-Stage Breakdown** – Address → Takeaway → Backswing → Top → Downswing → Impact → Follow-Through → Finish
-- 🎯 **Per-Stage Scoring** – 0–100 score with detailed good/bad/why/tips feedback
-- 🖼️ **Side-by-Side Comparison** – Annotated user vs. reference frames with skeleton overlays and callouts
-- 🔍 **Click to Enlarge** – Lightbox for detailed frame inspection
-- ☸️ **AKS Ready** – Deploy to AKS, AKS Arc, AKS Edge Essentials, or any conformant K8s cluster
-- 📐 **Architecture Viewer** – Interactive system architecture diagram built into the UI
-- 📡 **Live K8s Panel** – Real-time cluster status when running in Kubernetes
+- **Video Upload** . Drag and drop or browse. Supports MP4, MOV, AVI, WebM.
+- **AI Analysis** . MediaPipe pose estimation + CLIP embedding matching. All local inference, no cloud APIs.
+- **8 Stage Breakdown** . Address, Takeaway, Backswing, Top, Downswing, Impact, Follow Through, Finish.
+- **Per Stage Scoring** . 0 to 100 score with detailed good/bad/why/tips feedback.
+- **Side by Side Comparison** . Annotated user vs. reference frames with skeleton overlays and callouts.
+- **Click to Enlarge** . Lightbox for detailed frame inspection.
+- **AKS Ready** . Deploy to AKS, AKS Arc, AKS Edge Essentials, or any conformant K8s cluster.
+- **Architecture Viewer** . Interactive system architecture diagram built into the UI.
+- **Live K8s Panel** . Real time cluster status when running in Kubernetes.
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ kubectl get svc golf-frontend -n golf-ai -w
 
 Open **http://\<EXTERNAL-IP\>** once the IP appears.
 
-> ⏳ **First deploy:** The backend image is ~6GB (includes all ML models baked in). Initial pull takes **3–10 minutes** depending on node size and network speed. Monitor with `kubectl get pods -n golf-ai -w`.
+> **First deploy note:** The backend image is ~6GB (includes all ML models baked in). Initial pull takes 3 to 10 minutes depending on node size and network speed. Monitor with `kubectl get pods -n golf-ai -w`.
 
 ### Deploy to AKS Arc / AKS Edge Essentials
 
@@ -66,7 +66,7 @@ kubectl get svc golf-frontend -n golf-ai
 
 Open **http://\<node-ip\>:30080**
 
-> 💡 **AKS Edge Essentials:** Same steps apply — the manifests work on any K3s/K8s cluster provisioned by AKS Edge. Ensure your node has at least **8GB RAM** for the ML models.
+> **AKS Edge Essentials:** Same steps apply. The manifests work on any K3s/K8s cluster provisioned by AKS Edge. Ensure your node has at least **8GB RAM** for the ML models.
 
 ### Build Images Yourself (Optional)
 
@@ -89,7 +89,7 @@ az aks update --name <cluster> --resource-group <rg> --attach-acr <yourregistry>
 kubectl apply -k deploy/overlays/demo   # Edit overlay to point to your registry
 ```
 
-> 📖 **Full deployment guide** with troubleshooting and configuration: [docs/deployment-guide.md](docs/deployment-guide.md)
+> **Full deployment guide** with troubleshooting and configuration: [docs/deployment-guide.md](docs/deployment-guide.md)
 
 ## Architecture
 

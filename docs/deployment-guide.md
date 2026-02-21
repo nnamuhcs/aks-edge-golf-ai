@@ -52,7 +52,7 @@ kubectl apply -k deploy/base/
 
 The manifests reference `ghcr.io/nnamuhcs/golf-ai-backend:latest` and `ghcr.io/nnamuhcs/golf-ai-frontend:latest`. Kubernetes pulls them automatically.
 
-> ⏳ **First deploy note:** The backend image is approximately **6GB** because it includes all ML models (MediaPipe, CLIP ViT-B/32, PyTorch) baked in. The initial pull takes **3–10 minutes** depending on your AKS node size and network speed. The frontend image is only ~93MB and pulls almost instantly.
+> **First deploy note:** The backend image is approximately **6GB** because it includes all ML models (MediaPipe, CLIP ViT-B/32, PyTorch) baked in. The initial pull takes **3 to 10 minutes** depending on your AKS node size and network speed. The frontend image is only ~93MB and pulls almost instantly.
 >
 > Monitor progress: `kubectl get pods -n golf-ai -w` — wait for `ContainerCreating` → `Running`.
 
@@ -107,7 +107,7 @@ cd aks-edge-golf-ai
 kubectl apply -k deploy/base/
 ```
 
-> ⏳ The backend image is ~6GB. On-prem pull speed depends on your network connection to ghcr.io. If your environment has limited internet access, consider building images and pushing to a local registry (see [Build Images Yourself](#build-images-yourself-optional) below).
+> **Note:** The backend image is ~6GB. On-prem pull speed depends on your network connection to ghcr.io. If your environment has limited internet access, consider building images and pushing to a local registry (see [Build Images Yourself](#build-images-yourself-optional) below).
 
 ### Step 3: Access via NodePort
 
@@ -152,7 +152,7 @@ cd aks-edge-golf-ai
 kubectl apply -k deploy/base/
 ```
 
-> 💡 **Resource requirements:** Ensure your edge node has at least **8GB RAM** and **15GB free disk** for the ML model images. AKS Edge Essentials single-machine deployments should allocate sufficient memory to the Linux VM.
+> **Resource requirements:** Ensure your edge node has at least **8GB RAM** and **15GB free disk** for the ML model images. AKS Edge Essentials single-machine deployments should allocate sufficient memory to the Linux VM.
 
 ### Step 3: Access via NodePort
 
@@ -190,7 +190,7 @@ docker push <yourregistry>.azurecr.io/golf-ai-backend:latest
 docker push <yourregistry>.azurecr.io/golf-ai-frontend:latest
 ```
 
-> ⏳ The backend build takes ~5 minutes the first time as it downloads ML models (~600MB CLIP + MediaPipe) and bakes them into the image.
+> **Note:** The backend build takes ~5 minutes the first time as it downloads ML models (~600MB CLIP + MediaPipe) and bakes them into the image.
 
 ### Attach ACR to your AKS cluster
 
