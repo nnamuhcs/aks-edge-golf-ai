@@ -1,74 +1,157 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
+/* ── Layout: all positions in a virtual 1000×600 canvas ── */
 const NODES = [
-  // Row 0: User
-  { id: 'user', label: '📹 Video Upload', desc: 'Drag & drop golf swing video', group: 'frontend', x: 50, y: 8, w: 160, h: 56 },
-  // Row 1: API + Frontend
-  { id: 'api', label: '⚡ FastAPI Gateway', desc: 'REST API • POST /upload • GET /status • GET /result', group: 'backend', x: 50, y: 22, w: 200, h: 56 },
-  // Row 2: Pipeline
-  { id: 'decoder', label: '🎬 Video Decoder', desc: 'ffmpeg • Two-pass swing extraction • Motion-based region detection', group: 'pipeline', x: 8, y: 38, w: 180, h: 56 },
-  { id: 'pose', label: '🦴 Pose Estimation', desc: 'MediaPipe Heavy • 33 landmarks • 0.2 confidence threshold', group: 'ml', x: 42, y: 38, w: 180, h: 56 },
-  { id: 'segment', label: '📐 Stage Segmentation', desc: 'Anchor-based: Impact→Top→Address→Finish • 8 stages', group: 'pipeline', x: 75, y: 38, w: 180, h: 56 },
-  // Row 3: Analysis
-  { id: 'scoring', label: '🎯 Scoring Engine', desc: 'Gaussian curves • Stage-weighted • Body metrics → 0-100', group: 'pipeline', x: 8, y: 55, w: 175, h: 56 },
-  { id: 'reference', label: '🏆 Reference Matcher', desc: 'CLIP ViT-B/32 embeddings • Pro golfer frame similarity', group: 'ml', x: 42, y: 55, w: 190, h: 56 },
-  { id: 'annotator', label: '🖊️ Frame Annotator', desc: 'Skeleton overlay • Arrows • Callouts • Side-by-side', group: 'pipeline', x: 75, y: 55, w: 180, h: 56 },
-  // Row 4: Output
-  { id: 'results', label: '📊 Results & Coaching', desc: 'Per-stage scores • Actionable tips • Comparison images', group: 'frontend', x: 50, y: 72, w: 200, h: 56 },
+  { id: 'user',      label: '📹 Video Upload',       desc: 'Drag & drop golf swing video',       group: 'frontend', cx: 500, cy: 45,  w: 190, h: 52 },
+  { id: 'api',       label: '⚡ FastAPI Gateway',     desc: 'POST /upload • GET /status • GET /result', group: 'backend',  cx: 500, cy: 140, w: 210, h: 52 },
+  { id: 'decoder',   label: '🎬 Video Decoder',       desc: 'ffmpeg • Two-pass swing detection',   group: 'pipeline', cx: 170, cy: 250, w: 200, h: 52 },
+  { id: 'pose',      label: '🦴 Pose Estimation',     desc: 'MediaPipe Heavy • 33 landmarks',     group: 'ml',       cx: 500, cy: 250, w: 200, h: 52 },
+  { id: 'segment',   label: '📐 Stage Segmentation',  desc: 'Anchor-based • 8 swing stages',      group: 'pipeline', cx: 830, cy: 250, w: 210, h: 52 },
+  { id: 'scoring',   label: '🎯 Scoring Engine',      desc: 'Gaussian curves • Body metrics → 0-100', group: 'pipeline', cx: 170, cy: 370, w: 200, h: 52 },
+  { id: 'reference', label: '🏆 Reference Matcher',   desc: 'CLIP ViT-B/32 • Pro golfer similarity', group: 'ml',       cx: 500, cy: 370, w: 210, h: 52 },
+  { id: 'annotator', label: '🖊️ Frame Annotator',     desc: 'Skeleton • Arrows • Side-by-side',    group: 'pipeline', cx: 830, cy: 370, w: 200, h: 52 },
+  { id: 'results',   label: '📊 Results & Coaching',  desc: 'Scores • Actionable tips • Comparisons', group: 'frontend', cx: 500, cy: 490, w: 210, h: 52 },
 ]
 
 const EDGES = [
-  { from: 'user', to: 'api', label: 'Upload' },
-  { from: 'api', to: 'decoder', label: 'Video file' },
-  { from: 'decoder', to: 'pose', label: 'Frames' },
-  { from: 'pose', to: 'segment', label: 'Landmarks' },
-  { from: 'segment', to: 'scoring', label: 'Stage indices' },
-  { from: 'pose', to: 'reference', label: 'Frame features' },
-  { from: 'reference', to: 'annotator', label: 'Best match' },
+  { from: 'user',    to: 'api',       label: 'Upload' },
+  { from: 'api',     to: 'decoder',   label: 'Video file' },
+  { from: 'api',     to: 'pose',      label: 'Frames' },
+  { from: 'decoder', to: 'pose',      label: 'Frames' },
+  { from: 'pose',    to: 'segment',   label: 'Landmarks' },
+  { from: 'segment', to: 'scoring',   label: 'Stage idx' },
+  { from: 'pose',    to: 'reference', label: 'Features' },
+  { from: 'reference','to': 'annotator', label: 'Match' },
   { from: 'scoring', to: 'annotator', label: 'Metrics' },
-  { from: 'annotator', to: 'results', label: 'Annotated' },
-  { from: 'scoring', to: 'results', label: 'Scores + tips' },
+  { from: 'annotator',to: 'results',  label: 'Annotated' },
+  { from: 'scoring', to: 'results',   label: 'Scores' },
 ]
 
 const K8S_COMPONENTS = [
-  { icon: '☸', name: 'AKS Edge Essentials', kind: 'Cluster', desc: 'Lightweight K8s on edge hardware' },
-  { icon: '📦', name: 'golf-ai-backend', kind: 'Deployment', desc: 'FastAPI + ML pipeline container' },
-  { icon: '🔗', name: 'golf-ai-api', kind: 'Service', desc: 'ClusterIP → port 8000' },
-  { icon: '🌐', name: 'golf-ai-ingress', kind: 'Ingress', desc: 'External access routing' },
-  { icon: '💾', name: 'model-cache-pvc', kind: 'PersistentVolumeClaim', desc: 'MediaPipe + CLIP model weights' },
-  { icon: '⚙️', name: 'golf-ai-config', kind: 'ConfigMap', desc: 'Runtime settings & thresholds' },
-  { icon: '📁', name: 'results-pvc', kind: 'PersistentVolumeClaim', desc: 'Generated analysis assets' },
+  { icon: '☸', name: 'AKS Edge',           kind: 'Cluster',             desc: 'Lightweight K8s on edge devices' },
+  { icon: '📦', name: 'golf-ai-backend',    kind: 'Deployment',          desc: 'FastAPI + ML pipeline container' },
+  { icon: '🔗', name: 'golf-ai-api',        kind: 'Service',             desc: 'ClusterIP → port 8000' },
+  { icon: '🌐', name: 'golf-ai-ingress',    kind: 'Ingress',             desc: 'External access routing' },
+  { icon: '💾', name: 'model-cache-pvc',     kind: 'PersistentVolumeClaim', desc: 'MediaPipe + CLIP model weights' },
+  { icon: '⚙️', name: 'golf-ai-config',      kind: 'ConfigMap',           desc: 'Runtime settings & thresholds' },
+  { icon: '📁', name: 'results-pvc',         kind: 'PersistentVolumeClaim', desc: 'Generated analysis assets' },
 ]
 
 const TECH_STACK = [
   { category: 'Frontend', items: ['React 18', 'Vite', 'CSS3 Custom Properties'] },
   { category: 'Backend', items: ['Python 3.11', 'FastAPI', 'uvicorn', 'OpenCV', 'ffmpeg'] },
   { category: 'ML Models', items: ['MediaPipe Pose (Heavy)', 'CLIP ViT-B/32 (HuggingFace)'] },
-  { category: 'Infrastructure', items: ['Docker multi-stage', 'Kubernetes', 'AKS Edge Essentials'] },
+  { category: 'Infrastructure', items: ['Docker multi-stage', 'Kubernetes', 'AKS Edge'] },
 ]
 
 const GROUP_COLORS = {
-  frontend: { bg: '#1e3a5f', border: '#3b82f6', glow: 'rgba(59,130,246,0.3)' },
-  backend: { bg: '#2d1b4e', border: '#8b5cf6', glow: 'rgba(139,92,246,0.3)' },
-  pipeline: { bg: '#1a3c34', border: '#10b981', glow: 'rgba(16,185,129,0.3)' },
-  ml: { bg: '#3b2313', border: '#f59e0b', glow: 'rgba(245,158,11,0.3)' },
+  frontend: { bg: '#1e3a5f', border: '#3b82f6', glow: 'rgba(59,130,246,0.35)' },
+  backend:  { bg: '#2d1b4e', border: '#8b5cf6', glow: 'rgba(139,92,246,0.35)' },
+  pipeline: { bg: '#1a3c34', border: '#10b981', glow: 'rgba(16,185,129,0.35)' },
+  ml:       { bg: '#3b2313', border: '#f59e0b', glow: 'rgba(245,158,11,0.35)' },
 }
 
 const GROUP_LABELS = {
   frontend: '🖥️ Frontend',
-  backend: '🔌 REST API',
+  backend:  '🔌 REST API',
   pipeline: '⚙️ Processing Pipeline',
-  ml: '🧠 ML Models',
+  ml:       '🧠 ML Models',
+}
+
+const FLOW_STEPS = [
+  { step: '1', icon: '📤', title: 'Upload',   desc: 'User uploads golf swing video via drag-and-drop' },
+  { step: '2', icon: '🎬', title: 'Decode',   desc: 'ffmpeg extracts frames, two-pass swing region detection' },
+  { step: '3', icon: '🦴', title: 'Pose',     desc: 'MediaPipe detects 33 body landmarks per frame' },
+  { step: '4', icon: '📐', title: 'Segment',  desc: 'Anchor-based algorithm identifies 8 swing stages' },
+  { step: '5', icon: '🎯', title: 'Score',    desc: 'Gaussian scoring against ideal body metrics' },
+  { step: '6', icon: '🏆', title: 'Match',    desc: 'CLIP embeddings find best pro golfer reference frame' },
+  { step: '7', icon: '🖊️', title: 'Annotate', desc: 'Skeleton overlay, arrows, and callouts on both frames' },
+  { step: '8', icon: '🏌️', title: 'Coach',    desc: 'Actionable coaching tips delivered to user' },
+]
+
+/* ── Edge path builder: bottom of source → top of target with bezier ── */
+function edgePath(fromNode, toNode) {
+  const x1 = fromNode.cx
+  const y1 = fromNode.cy + fromNode.h / 2
+  const x2 = toNode.cx
+  const y2 = toNode.cy - toNode.h / 2
+  const dy = Math.abs(y2 - y1)
+  const cp = Math.max(dy * 0.45, 30)
+  return `M${x1},${y1} C${x1},${y1 + cp} ${x2},${y2 - cp} ${x2},${y2}`
+}
+
+/* ── Edge label midpoint ── */
+function edgeMid(fromNode, toNode) {
+  return {
+    x: (fromNode.cx + toNode.cx) / 2,
+    y: (fromNode.cy + fromNode.h / 2 + toNode.cy - toNode.h / 2) / 2,
+  }
 }
 
 function ArchitecturePanel({ onBack }) {
-  const [hoveredNode, setHoveredNode] = useState(null)
-  const [selectedNode, setSelectedNode] = useState(null)
+  const [hovered, setHovered] = useState(null)
 
-  const getNodeCenter = (node) => ({
-    x: node.x + node.w / 2,
-    y: node.y + node.h / 2,
-  })
+  // Zoom / Pan state
+  const svgRef = useRef(null)
+  const [viewBox, setViewBox] = useState({ x: -20, y: -10, w: 1040, h: 560 })
+  const [isPanning, setIsPanning] = useState(false)
+  const panStart = useRef({ mx: 0, my: 0, vx: 0, vy: 0 })
+
+  const handleWheel = useCallback((e) => {
+    e.preventDefault()
+    const factor = e.deltaY > 0 ? 1.1 : 0.9
+    setViewBox(vb => {
+      const svg = svgRef.current
+      if (!svg) return vb
+      const rect = svg.getBoundingClientRect()
+      const mx = ((e.clientX - rect.left) / rect.width) * vb.w + vb.x
+      const my = ((e.clientY - rect.top) / rect.height) * vb.h + vb.y
+      const nw = vb.w * factor
+      const nh = vb.h * factor
+      // Clamp zoom
+      if (nw < 300 || nw > 3000) return vb
+      return {
+        x: mx - (mx - vb.x) * factor,
+        y: my - (my - vb.y) * factor,
+        w: nw,
+        h: nh,
+      }
+    })
+  }, [])
+
+  const handlePointerDown = useCallback((e) => {
+    if (e.button !== 0) return
+    // Only pan if clicking on the canvas background (SVG itself)
+    if (e.target.closest('.arch-svg-node')) return
+    setIsPanning(true)
+    panStart.current = { mx: e.clientX, my: e.clientY, vx: viewBox.x, vy: viewBox.y }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }, [viewBox])
+
+  const handlePointerMove = useCallback((e) => {
+    if (!isPanning) return
+    const svg = svgRef.current
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const dx = ((e.clientX - panStart.current.mx) / rect.width) * viewBox.w
+    const dy = ((e.clientY - panStart.current.my) / rect.height) * viewBox.h
+    setViewBox(vb => ({ ...vb, x: panStart.current.vx - dx, y: panStart.current.vy - dy }))
+  }, [isPanning, viewBox.w, viewBox.h])
+
+  const handlePointerUp = useCallback(() => setIsPanning(false), [])
+
+  const resetZoom = () => setViewBox({ x: -20, y: -10, w: 1040, h: 560 })
+
+  // Attach wheel listener with passive:false
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [handleWheel])
+
+  const connectedEdges = (nodeId) =>
+    EDGES.filter(e => e.from === nodeId || e.to === nodeId)
 
   return (
     <div className="arch-page">
@@ -88,82 +171,113 @@ function ArchitecturePanel({ onBack }) {
             <span>{label}</span>
           </div>
         ))}
+        <div className="arch-legend-item" style={{ marginLeft: 'auto', opacity: 0.6 }}>
+          Scroll to zoom • Drag to pan
+        </div>
+        <button className="arch-zoom-reset" onClick={resetZoom} title="Reset zoom">⟲ Reset</button>
       </div>
 
-      {/* Flowchart Canvas */}
-      <div className="arch-canvas">
-        <svg className="arch-edges" viewBox="0 0 100 85" preserveAspectRatio="none">
+      {/* Flowchart — pure SVG with zoom/pan */}
+      <div className="arch-canvas-wrap">
+        <svg
+          ref={svgRef}
+          className="arch-svg"
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+        >
           <defs>
-            <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-              <path d="M0,0 L8,3 L0,6" fill="#475569" />
+            <marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <path d="M0,0 L10,3.5 L0,7" fill="#475569" />
             </marker>
-            <marker id="arrow-glow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-              <path d="M0,0 L8,3 L0,6" fill="#10b981" />
+            <marker id="ah-glow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <path d="M0,0 L10,3.5 L0,7" fill="#34d399" />
             </marker>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="g" />
+              <feMerge><feMergeNode in="g" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
           </defs>
+
+          {/* Background dot grid */}
+          <pattern id="dots" width="25" height="25" patternUnits="userSpaceOnUse">
+            <circle cx="12.5" cy="12.5" r="0.8" fill="#1e293b" />
+          </pattern>
+          <rect x="-200" y="-200" width="1400" height="1000" fill="#0f172a" />
+          <rect x="-200" y="-200" width="1400" height="1000" fill="url(#dots)" />
+
+          {/* Edges */}
           {EDGES.map((edge, i) => {
-            const from = NODES.find(n => n.id === edge.from)
-            const to = NODES.find(n => n.id === edge.to)
-            if (!from || !to) return null
-            const fc = getNodeCenter(from)
-            const tc = getNodeCenter(to)
-
-            // Determine connection points
-            let x1 = fc.x, y1 = fc.y, x2 = tc.x, y2 = tc.y
-            // Connect from bottom of source to top of target
-            y1 = from.y + from.h / 100 * 85
-            y2 = to.y + to.h / 100 * 15
-
-            const isHighlighted = hoveredNode === edge.from || hoveredNode === edge.to
-            const midY = (y1 + y2) / 2
-
+            const fn = NODES.find(n => n.id === edge.from)
+            const tn = NODES.find(n => n.id === edge.to)
+            if (!fn || !tn) return null
+            const isHi = hovered && (edge.from === hovered || edge.to === hovered)
+            const mid = edgeMid(fn, tn)
             return (
               <g key={i}>
                 <path
-                  d={`M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`}
+                  d={edgePath(fn, tn)}
                   fill="none"
-                  stroke={isHighlighted ? '#10b981' : '#334155'}
-                  strokeWidth={isHighlighted ? 0.4 : 0.2}
-                  markerEnd={isHighlighted ? 'url(#arrow-glow)' : 'url(#arrow)'}
-                  opacity={isHighlighted ? 1 : 0.6}
-                  className={isHighlighted ? 'arch-edge-glow' : ''}
+                  stroke={isHi ? '#34d399' : '#334155'}
+                  strokeWidth={isHi ? 2.5 : 1.5}
+                  markerEnd={isHi ? 'url(#ah-glow)' : 'url(#ah)'}
+                  opacity={hovered ? (isHi ? 1 : 0.2) : 0.7}
+                  filter={isHi ? 'url(#glow)' : undefined}
                 />
+                {isHi && (
+                  <text x={mid.x} y={mid.y - 6} textAnchor="middle"
+                    fill="#94a3b8" fontSize="10" fontFamily="Inter, sans-serif">
+                    {edge.label}
+                  </text>
+                )}
+              </g>
+            )
+          })}
+
+          {/* Nodes */}
+          {NODES.map(node => {
+            const c = GROUP_COLORS[node.group]
+            const isHi = hovered === node.id
+            const x = node.cx - node.w / 2
+            const y = node.cy - node.h / 2
+            return (
+              <g key={node.id} className="arch-svg-node"
+                onMouseEnter={() => setHovered(node.id)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ cursor: 'pointer' }}
+              >
+                {/* Glow rect behind */}
+                {isHi && (
+                  <rect x={x - 4} y={y - 4} width={node.w + 8} height={node.h + 8}
+                    rx="12" fill="none" stroke={c.border} strokeWidth="2"
+                    opacity="0.5" filter="url(#glow)" />
+                )}
+                <rect x={x} y={y} width={node.w} height={node.h}
+                  rx="10" fill={c.bg}
+                  stroke={isHi ? c.border : 'rgba(255,255,255,0.12)'}
+                  strokeWidth={isHi ? 2 : 1} />
+                <text x={node.cx} y={node.cy - 5} textAnchor="middle"
+                  fill="#f1f5f9" fontSize="13" fontWeight="700"
+                  fontFamily="Inter, sans-serif">
+                  {node.label}
+                </text>
+                <text x={node.cx} y={node.cy + 13} textAnchor="middle"
+                  fill="#94a3b8" fontSize="9.5"
+                  fontFamily="Inter, sans-serif">
+                  {node.desc}
+                </text>
               </g>
             )
           })}
         </svg>
-
-        {NODES.map(node => {
-          const colors = GROUP_COLORS[node.group]
-          const isHovered = hoveredNode === node.id
-          const isSelected = selectedNode === node.id
-          return (
-            <div
-              key={node.id}
-              className={`arch-node ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
-              style={{
-                left: `${node.x}%`,
-                top: `${node.y}%`,
-                width: `${node.w}px`,
-                background: colors.bg,
-                borderColor: isHovered || isSelected ? colors.border : 'rgba(255,255,255,0.1)',
-                boxShadow: isHovered || isSelected ? `0 0 20px ${colors.glow}` : 'none',
-              }}
-              onMouseEnter={() => setHoveredNode(node.id)}
-              onMouseLeave={() => setHoveredNode(null)}
-              onClick={() => setSelectedNode(selectedNode === node.id ? null : node.id)}
-            >
-              <div className="arch-node-label">{node.label}</div>
-              <div className="arch-node-desc">{node.desc}</div>
-            </div>
-          )
-        })}
       </div>
 
       {/* K8s Architecture */}
       <div className="arch-k8s-section">
         <h3 className="arch-section-title">
-          <span>☸</span> Kubernetes Deployment — AKS Edge Essentials
+          <span>☸</span> Kubernetes Deployment — AKS Edge
         </h3>
         <div className="arch-k8s-grid">
           {K8S_COMPONENTS.map((comp, i) => (
@@ -204,22 +318,12 @@ function ArchitecturePanel({ onBack }) {
           <span>🔄</span> Data Flow
         </h3>
         <div className="arch-flow-steps">
-          {[
-            { step: '1', icon: '📤', title: 'Upload', desc: 'User uploads golf swing video via drag-and-drop' },
-            { step: '2', icon: '🎬', title: 'Decode', desc: 'ffmpeg extracts frames, two-pass swing region detection' },
-            { step: '3', icon: '🦴', title: 'Pose', desc: 'MediaPipe detects 33 body landmarks per frame' },
-            { step: '4', icon: '📐', title: 'Segment', desc: 'Anchor-based algorithm identifies 8 swing stages' },
-            { step: '5', icon: '🎯', title: 'Score', desc: 'Gaussian scoring against ideal body metrics' },
-            { step: '6', icon: '🏆', title: 'Match', desc: 'CLIP embeddings find best pro golfer reference frame' },
-            { step: '7', icon: '🖊️', title: 'Annotate', desc: 'Skeleton overlay, arrows, and callouts on both frames' },
-            { step: '8', icon: '🏌️', title: 'Coach', desc: 'Actionable coaching tips delivered to user' },
-          ].map((s, i) => (
+          {FLOW_STEPS.map((s, i) => (
             <div key={i} className="arch-flow-step">
               <div className="arch-flow-num">{s.step}</div>
               <div className="arch-flow-icon">{s.icon}</div>
               <div className="arch-flow-title">{s.title}</div>
               <div className="arch-flow-desc">{s.desc}</div>
-              {i < 7 && <div className="arch-flow-arrow">→</div>}
             </div>
           ))}
         </div>

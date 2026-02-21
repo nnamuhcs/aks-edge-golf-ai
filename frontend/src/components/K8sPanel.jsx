@@ -68,10 +68,10 @@ function K8sPanel({ isOpen, onToggle, apiBase }) {
   }
 
   return (
-    <>
-      {/* Toggle button (always visible) */}
+    <div className={`k8s-wrapper ${isOpen ? 'open' : ''}`}>
+      {/* Toggle button */}
       <button
-        className={`k8s-toggle ${isOpen ? 'open' : ''}`}
+        className="k8s-toggle"
         onClick={onToggle}
         title={isOpen ? 'Hide K8s Panel' : 'Show K8s Panel'}
       >
@@ -147,7 +147,7 @@ function K8sPanel({ isOpen, onToggle, apiBase }) {
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
