@@ -2,8 +2,6 @@
 
 A production-grade, containerized golf swing analyzer powered by AI. Upload a video, get instant stage-by-stage feedback with annotated side-by-side comparisons against good practice references.
 
-![Demo](docs/demo-screenshot.png)
-
 ## Features
 
 - 🎥 **Video Upload** – Drag & drop or browse; supports MP4, MOV, AVI, WebM
@@ -12,66 +10,48 @@ A production-grade, containerized golf swing analyzer powered by AI. Upload a vi
 - 🎯 **Per-Stage Scoring** – 0–100 score with detailed good/bad/why/tips feedback
 - 🖼️ **Side-by-Side Comparison** – Annotated user vs. reference frames with skeleton overlays and callouts
 - 🔍 **Click to Enlarge** – Lightbox for detailed frame inspection
-- ☸️ **K8s Ready** – Deploy to AKS or any conformant cluster
-- 🐳 **Docker Compose** – One-command local demo
+- ☸️ **K8s Ready** – Deploy to AKS, Kind, or any conformant K8s cluster
+- 📐 **Architecture Viewer** – Interactive system architecture diagram built into the UI
+- 📡 **Live K8s Panel** – Real-time cluster status when running in Kubernetes
 
-## Quick Start
-
-### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- Docker (optional)
-
-### Local Development
+## Quick Start (Local — No Docker)
 
 ```bash
-# 1. Generate demo content (synthetic videos + reference frames)
-make demo-content
+git clone https://github.com/nnamuhcs/aks-edge-golf-ai.git
+cd aks-edge-golf-ai
 
-# 2. Install dependencies
-make setup
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+# First run downloads CLIP model (~600MB) from HuggingFace
 
-# 3. Start backend (terminal 1)
-make backend
-
-# 4. Start frontend (terminal 2)
-make frontend
-
-# 5. Open http://localhost:3000
+# Frontend (separate terminal)
+cd frontend
+npm install && npm run build
+# Backend serves the built frontend at http://localhost:8000
 ```
 
-### Docker Compose (Recommended)
+Open **http://localhost:8000**
+
+## Quick Start (Kind — Local Kubernetes)
 
 ```bash
-# Generate demo content first
-make demo-content
+# Build images (backend ~5 min first time — downloads ML models)
+docker build -t golf-ai-backend:latest -f backend/Dockerfile backend/
+docker build -t golf-ai-frontend:latest -f frontend/Dockerfile frontend/
 
-# Build and run
-docker-compose up --build
+# Create Kind cluster with port mapping
+kind create cluster --name golf-ai --config deploy/kind-config.yaml
 
-# Open http://localhost:3000
+# Load images & deploy
+kind load docker-image golf-ai-backend:latest golf-ai-frontend:latest --name golf-ai
+kubectl apply -k deploy/base/
 ```
 
-### Kubernetes Deployment
+Open **http://localhost:3001** — no port-forward needed!
 
-```bash
-# Build images
-make build
-
-# Tag for your registry (if needed)
-docker tag golf-swing-ai-backend <registry>/golf-swing-ai-backend:latest
-docker tag golf-swing-ai-frontend <registry>/golf-swing-ai-frontend:latest
-docker push <registry>/golf-swing-ai-backend:latest
-docker push <registry>/golf-swing-ai-frontend:latest
-
-# Deploy
-kubectl apply -k deploy/overlays/demo
-
-# Port-forward for access
-make port-forward
-
-# Open http://localhost:3000
-```
+> 📖 **Full deployment guide** (including AKS): [docs/deployment-guide.md](docs/deployment-guide.md)
 
 ## Architecture
 
