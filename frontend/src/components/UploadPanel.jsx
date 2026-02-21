@@ -56,7 +56,10 @@ function UploadPanel({ onUpload, videoUrl }) {
           <video
             src={URL.createObjectURL(selectedFile)}
             controls
+            muted
             playsInline
+            style={{ pointerEvents: 'auto' }}
+            onVolumeChange={(e) => { e.target.muted = true }}
           />
           <div style={{ marginTop: 12, textAlign: 'center' }}>
             <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: 12 }}>

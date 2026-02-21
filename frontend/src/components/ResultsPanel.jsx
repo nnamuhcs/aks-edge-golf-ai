@@ -1,8 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function ResultsPanel({ result, onReset }) {
   const [selectedStage, setSelectedStage] = useState(0)
   const [lightboxSrc, setLightboxSrc] = useState(null)
+  const [showHint, setShowHint] = useState(true)
+
+  // Fade out the pulse hint after 4 seconds
+  useEffect(() => {
+    if (!result) return
+    setShowHint(true)
+    const timer = setTimeout(() => setShowHint(false), 4000)
+    return () => clearTimeout(timer)
+  }, [result])
 
   if (!result || !result.stages) return null
 
@@ -33,7 +42,7 @@ function ResultsPanel({ result, onReset }) {
         {result.stages.map((s, idx) => (
           <button
             key={s.stage}
-            className={`stage-tab ${idx === selectedStage ? 'active' : ''}`}
+            className={`stage-tab ${idx === selectedStage ? 'active' : ''} ${showHint && idx !== selectedStage ? 'hint-pulse' : ''}`}
             onClick={() => setSelectedStage(idx)}
           >
             {s.display_name}

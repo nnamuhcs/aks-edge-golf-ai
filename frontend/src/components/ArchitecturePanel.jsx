@@ -45,10 +45,10 @@ const TECH_STACK = [
 ]
 
 const GROUP_COLORS = {
-  frontend: { bg: '#1e3a5f', border: '#3b82f6', glow: 'rgba(59,130,246,0.35)' },
-  backend:  { bg: '#2d1b4e', border: '#8b5cf6', glow: 'rgba(139,92,246,0.35)' },
-  pipeline: { bg: '#1a3c34', border: '#10b981', glow: 'rgba(16,185,129,0.35)' },
-  ml:       { bg: '#3b2313', border: '#f59e0b', glow: 'rgba(245,158,11,0.35)' },
+  frontend: { bg: '#dbeafe', border: '#3b82f6', glow: 'rgba(59,130,246,0.2)' },
+  backend:  { bg: '#ede9fe', border: '#8b5cf6', glow: 'rgba(139,92,246,0.2)' },
+  pipeline: { bg: '#d1fae5', border: '#10b981', glow: 'rgba(16,185,129,0.2)' },
+  ml:       { bg: '#fef3c7', border: '#f59e0b', glow: 'rgba(245,158,11,0.2)' },
 }
 
 const GROUP_LABELS = {
@@ -69,23 +69,60 @@ const FLOW_STEPS = [
   { step: '8', icon: '🏌️', title: 'Coach',    desc: 'Actionable coaching tips delivered to user' },
 ]
 
-/* ── Edge path builder: bottom of source → top of target with bezier ── */
+/* ── Edge path builder: connect closest edges, arrow lands at target border ── */
 function edgePath(fromNode, toNode) {
-  const x1 = fromNode.cx
-  const y1 = fromNode.cy + fromNode.h / 2
-  const x2 = toNode.cx
-  const y2 = toNode.cy - toNode.h / 2
-  const dy = Math.abs(y2 - y1)
-  const cp = Math.max(dy * 0.45, 30)
-  return `M${x1},${y1} C${x1},${y1 + cp} ${x2},${y2 - cp} ${x2},${y2}`
+  const dx = toNode.cx - fromNode.cx
+  const dy = toNode.cy - fromNode.cy
+
+  let x1, y1, x2, y2
+
+  // Determine exit/entry sides based on relative position
+  if (Math.abs(dy) > Math.abs(dx) * 0.4) {
+    // Mostly vertical — exit bottom/top
+    if (dy > 0) {
+      x1 = fromNode.cx; y1 = fromNode.cy + fromNode.h / 2
+      x2 = toNode.cx;   y2 = toNode.cy - toNode.h / 2
+    } else {
+      x1 = fromNode.cx; y1 = fromNode.cy - fromNode.h / 2
+      x2 = toNode.cx;   y2 = toNode.cy + toNode.h / 2
+    }
+  } else {
+    // Mostly horizontal — exit right/left
+    if (dx > 0) {
+      x1 = fromNode.cx + fromNode.w / 2; y1 = fromNode.cy
+      x2 = toNode.cx - toNode.w / 2;     y2 = toNode.cy
+    } else {
+      x1 = fromNode.cx - fromNode.w / 2; y1 = fromNode.cy
+      x2 = toNode.cx + toNode.w / 2;     y2 = toNode.cy
+    }
+  }
+
+  const dist = Math.hypot(x2 - x1, y2 - y1)
+  const cp = Math.max(dist * 0.35, 25)
+
+  // Bezier control points extend in the exit/entry direction
+  if (Math.abs(dy) > Math.abs(dx) * 0.4) {
+    const sign = dy > 0 ? 1 : -1
+    return `M${x1},${y1} C${x1},${y1 + sign * cp} ${x2},${y2 - sign * cp} ${x2},${y2}`
+  } else {
+    const sign = dx > 0 ? 1 : -1
+    return `M${x1},${y1} C${x1 + sign * cp},${y1} ${x2 - sign * cp},${y2} ${x2},${y2}`
+  }
 }
 
 /* ── Edge label midpoint ── */
 function edgeMid(fromNode, toNode) {
-  return {
-    x: (fromNode.cx + toNode.cx) / 2,
-    y: (fromNode.cy + fromNode.h / 2 + toNode.cy - toNode.h / 2) / 2,
+  const dx = toNode.cx - fromNode.cx
+  const dy = toNode.cy - fromNode.cy
+  let x1, y1, x2, y2
+  if (Math.abs(dy) > Math.abs(dx) * 0.4) {
+    x1 = fromNode.cx; y1 = fromNode.cy + (dy > 0 ? fromNode.h / 2 : -fromNode.h / 2)
+    x2 = toNode.cx;   y2 = toNode.cy + (dy > 0 ? -toNode.h / 2 : toNode.h / 2)
+  } else {
+    x1 = fromNode.cx + (dx > 0 ? fromNode.w / 2 : -fromNode.w / 2); y1 = fromNode.cy
+    x2 = toNode.cx + (dx > 0 ? -toNode.w / 2 : toNode.w / 2);       y2 = toNode.cy
   }
+  return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 }
 }
 
 function ArchitecturePanel({ onBack }) {
@@ -165,24 +202,14 @@ function ArchitecturePanel({ onBack }) {
   return (
     <div className="arch-page">
       <div className="arch-header">
-        <button className="arch-back-btn" onClick={onBack}>← Back</button>
         <div>
           <h2 className="arch-title">System Architecture</h2>
           <p className="arch-desc">Golf Swing AI Coacher — End-to-end pipeline on AKS Edge</p>
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Controls */}
       <div className="arch-legend">
-        {Object.entries(GROUP_LABELS).map(([key, label]) => (
-          <div key={key} className="arch-legend-item">
-            <span className="arch-legend-dot" style={{ background: GROUP_COLORS[key].border }} />
-            <span>{label}</span>
-          </div>
-        ))}
-        <div className="arch-legend-item" style={{ marginLeft: 'auto', opacity: 0.6 }}>
-          Scroll to zoom • Drag to pan
-        </div>
         <button className="arch-zoom-reset" onClick={resetZoom} title="Reset zoom">⟲ Reset</button>
         <button className="arch-zoom-reset" onClick={() => setIsFullscreen(!isFullscreen)} title="Toggle fullscreen">
           {isFullscreen ? '⊠ Exit' : '⛶ Fullscreen'}
@@ -211,10 +238,10 @@ function ArchitecturePanel({ onBack }) {
         >
           <defs>
             <marker id="ah" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-              <path d="M0,0 L10,3.5 L0,7" fill="#475569" />
+              <path d="M0,0 L10,3.5 L0,7" fill="#94a3b8" />
             </marker>
             <marker id="ah-glow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-              <path d="M0,0 L10,3.5 L0,7" fill="#34d399" />
+              <path d="M0,0 L10,3.5 L0,7" fill="#059669" />
             </marker>
             <filter id="glow">
               <feGaussianBlur stdDeviation="3" result="g" />
@@ -224,9 +251,9 @@ function ArchitecturePanel({ onBack }) {
 
           {/* Background dot grid */}
           <pattern id="dots" width="25" height="25" patternUnits="userSpaceOnUse">
-            <circle cx="12.5" cy="12.5" r="0.8" fill="#1e293b" />
+            <circle cx="12.5" cy="12.5" r="0.8" fill="#e2e8f0" />
           </pattern>
-          <rect x="-200" y="-200" width="1400" height="1000" fill="#0f172a" />
+          <rect x="-200" y="-200" width="1400" height="1000" fill="#f8fafc" />
           <rect x="-200" y="-200" width="1400" height="1000" fill="url(#dots)" />
 
           {/* Edges */}
@@ -241,15 +268,14 @@ function ArchitecturePanel({ onBack }) {
                 <path
                   d={edgePath(fn, tn)}
                   fill="none"
-                  stroke={isHi ? '#34d399' : '#334155'}
+                  stroke={isHi ? '#059669' : '#cbd5e1'}
                   strokeWidth={isHi ? 2.5 : 1.5}
                   markerEnd={isHi ? 'url(#ah-glow)' : 'url(#ah)'}
-                  opacity={hovered ? (isHi ? 1 : 0.2) : 0.7}
-                  filter={isHi ? 'url(#glow)' : undefined}
+                  opacity={hovered ? (isHi ? 1 : 0.15) : 0.5}
                 />
                 {isHi && (
                   <text x={mid.x} y={mid.y - 6} textAnchor="middle"
-                    fill="#94a3b8" fontSize="10" fontFamily="Inter, sans-serif">
+                    fill="#64748b" fontSize="10" fontFamily="Inter, sans-serif">
                     {edge.label}
                   </text>
                 )}
@@ -277,15 +303,15 @@ function ArchitecturePanel({ onBack }) {
                 )}
                 <rect x={x} y={y} width={node.w} height={node.h}
                   rx="10" fill={c.bg}
-                  stroke={isHi ? c.border : 'rgba(255,255,255,0.12)'}
+                  stroke={isHi ? c.border : 'rgba(0,0,0,0.1)'}
                   strokeWidth={isHi ? 2 : 1} />
                 <text x={node.cx} y={node.cy - 5} textAnchor="middle"
-                  fill="#f1f5f9" fontSize="13" fontWeight="700"
+                  fill="#1e293b" fontSize="13" fontWeight="700"
                   fontFamily="Inter, sans-serif">
                   {node.label}
                 </text>
                 <text x={node.cx} y={node.cy + 13} textAnchor="middle"
-                  fill="#94a3b8" fontSize="9.5"
+                  fill="#64748b" fontSize="9.5"
                   fontFamily="Inter, sans-serif">
                   {node.desc}
                 </text>

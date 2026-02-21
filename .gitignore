@@ -10,7 +10,12 @@ build/
 # Data
 backend/data/
 backend/model_cache/
-sample_videos/*.mp4
+
+# Sample videos - exclude personal videos
+sample_videos/Schumann*
+sample_videos/Ronnie*
+sample_videos/*.MOV
+sample_videos/*.mov
 
 # Frontend
 frontend/node_modules/

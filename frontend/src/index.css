@@ -8,7 +8,7 @@
   --color-primary: #059669;
   --color-primary-light: #10b981;
   --color-primary-dark: #047857;
-  --color-bg: #f8fafb;
+  --color-bg: #fffffc;
   --color-surface: #ffffff;
   --color-text: #1f2937;
   --color-text-secondary: #6b7280;
@@ -25,7 +25,7 @@
 
 body {
   font-family: var(--font);
-  background: #f0f0f0;
+  background: #ffffff;
   color: var(--color-text);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -41,7 +41,7 @@ body {
   flex-direction: column;
   position: relative;
   background: var(--color-bg);
-  box-shadow: 0 0 40px rgba(0,0,0,0.08);
+  box-shadow: 0 0 20px rgba(153,153,153,0.3);
   overflow: hidden;
 }
 
@@ -313,7 +313,7 @@ body {
   flex: 1;
   min-width: 85px;
   padding: 6px 8px;
-  border: none;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.7rem;
@@ -327,11 +327,13 @@ body {
 
 .stage-tab:hover {
   background: #f3f4f6;
+  border-color: var(--color-primary);
 }
 
 .stage-tab.active {
   background: var(--color-primary);
   color: white;
+  border-color: var(--color-primary);
 }
 
 .stage-tab .stage-score {
@@ -339,6 +341,15 @@ body {
   font-size: 1rem;
   font-weight: 700;
   margin-top: 2px;
+}
+
+.stage-tab.hint-pulse {
+  animation: tabPulse 1.2s ease-in-out 3;
+}
+
+@keyframes tabPulse {
+  0%, 100% { background: transparent; }
+  50% { background: rgba(5, 150, 105, 0.08); border-color: rgba(5, 150, 105, 0.3); }
 }
 
 /* Comparison Panel — side by side */
@@ -370,6 +381,11 @@ body {
 
 .comparison-card.user h3 { color: var(--color-primary); }
 .comparison-card.reference h3 { color: #2563eb; }
+
+.comparison-card.reference {
+  background: #f0f5ff;
+  border: 1px solid #c7d8f4;
+}
 
 .comparison-card img {
   width: 100%;
@@ -671,7 +687,7 @@ body {
 .k8s-panel {
   width: 480px;
   flex-shrink: 0;
-  background: var(--color-surface);
+  background: #f0f5ff;
   color: var(--color-text);
   border-left: 1px solid var(--color-border);
   display: flex;
@@ -792,6 +808,8 @@ body {
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 4px;
+  min-width: 65px;
+  text-align: center;
 }
 
 .k8s-comp-status.ready {
@@ -1030,9 +1048,9 @@ body {
 /* Legend */
 .arch-legend {
   display: flex;
-  gap: 20px;
+  gap: 8px;
   margin-bottom: 10px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .arch-legend-item {
@@ -1052,10 +1070,10 @@ body {
 /* Canvas (flowchart) — pure SVG with zoom/pan */
 .arch-canvas-wrap {
   border-radius: var(--radius);
-  border: 1px solid #1e293b;
+  border: 1px solid #e2e8f0;
   margin-bottom: 10px;
   overflow: hidden;
-  background: #0f172a;
+  background: #f8fafc;
   position: relative;
   flex: 1;
   min-height: 280px;
@@ -1077,13 +1095,13 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
 }
 
 .arch-fs-title {
-  color: #f1f5f9;
+  color: #1e293b;
   font-weight: 700;
   font-size: 0.95rem;
 }

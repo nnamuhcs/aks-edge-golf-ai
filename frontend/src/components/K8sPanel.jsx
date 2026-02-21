@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 function K8sPanel({ isOpen, onToggle, apiBase }) {
   const [components, setComponents] = useState([])
   const [activity, setActivity] = useState([])
+  const [metrics, setMetrics] = useState(null)
   const [namespace, setNamespace] = useState('default')
   const [inK8s, setInK8s] = useState(false)
   const activityEndRef = useRef(null)
@@ -18,6 +19,7 @@ function K8sPanel({ isOpen, onToggle, apiBase }) {
           const data = await resp.json()
           setComponents(data.components || [])
           setActivity(data.activity || [])
+          setMetrics(data.metrics || null)
           setNamespace(data.namespace || 'default')
           setInK8s(data.in_k8s || false)
         }
@@ -32,8 +34,9 @@ function K8sPanel({ isOpen, onToggle, apiBase }) {
   }, [isOpen, apiBase])
 
   useEffect(() => {
-    if (activityEndRef.current) {
-      activityEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    const el = activityEndRef.current
+    if (el && el.parentElement) {
+      el.parentElement.scrollTop = 0
     }
   }, [activity])
 
@@ -118,12 +121,75 @@ function K8sPanel({ isOpen, onToggle, apiBase }) {
           </div>
         </div>
 
+        {/* System Metrics */}
+        {metrics && (
+          <div className="k8s-section">
+            <div className="k8s-section-title">System Metrics</div>
+            <div className="k8s-metrics">
+              <div className="k8s-metric">
+                <div className="k8s-metric-header">
+                  <span>🔲 CPU</span>
+                  <span className="k8s-metric-val">{metrics.cpu_percent}%</span>
+                </div>
+                <div className="k8s-metric-bar">
+                  <div className="k8s-metric-fill" style={{
+                    width: `${metrics.cpu_percent}%`,
+                    background: metrics.cpu_percent > 80 ? '#ef4444' : metrics.cpu_percent > 50 ? '#f59e0b' : '#10b981'
+                  }} />
+                </div>
+                <div className="k8s-metric-sub">{metrics.cpu_cores} cores</div>
+              </div>
+
+              <div className="k8s-metric">
+                <div className="k8s-metric-header">
+                  <span>🧠 Memory</span>
+                  <span className="k8s-metric-val">{metrics.mem_percent}%</span>
+                </div>
+                <div className="k8s-metric-bar">
+                  <div className="k8s-metric-fill" style={{
+                    width: `${metrics.mem_percent}%`,
+                    background: metrics.mem_percent > 85 ? '#ef4444' : metrics.mem_percent > 60 ? '#f59e0b' : '#10b981'
+                  }} />
+                </div>
+                <div className="k8s-metric-sub">{metrics.mem_used_gb} / {metrics.mem_total_gb} GB • Process: {metrics.proc_mem_mb} MB</div>
+              </div>
+
+              <div className="k8s-metric">
+                <div className="k8s-metric-header">
+                  <span>💾 Disk</span>
+                  <span className="k8s-metric-val">{metrics.disk_percent}%</span>
+                </div>
+                <div className="k8s-metric-bar">
+                  <div className="k8s-metric-fill" style={{
+                    width: `${metrics.disk_percent}%`,
+                    background: metrics.disk_percent > 90 ? '#ef4444' : metrics.disk_percent > 70 ? '#f59e0b' : '#10b981'
+                  }} />
+                </div>
+                <div className="k8s-metric-sub">{metrics.disk_used_gb} / {metrics.disk_total_gb} GB • R: {metrics.disk_read_mb} MB W: {metrics.disk_write_mb} MB</div>
+              </div>
+
+              <div className="k8s-metric">
+                <div className="k8s-metric-header">
+                  <span>🌐 Network</span>
+                </div>
+                <div className="k8s-metric-sub" style={{ marginTop: 2 }}>↑ {metrics.net_sent_mb} MB sent • ↓ {metrics.net_recv_mb} MB recv</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Activity Feed */}
         <div className="k8s-section k8s-activity-section">
           <div className="k8s-section-title">
             Live Activity
             {activity.length > 0 && (
               <span className="k8s-activity-count">{activity.length}</span>
+            )}
+            {activity.length > 0 && (
+              <button className="k8s-clear-btn" onClick={async () => {
+                try { await fetch(`${apiBase}/api/k8s/clear-activity`, { method: 'POST' }) } catch(e) {}
+                setActivity([])
+              }}>Clear</button>
             )}
           </div>
           <div className="k8s-activity-feed">
@@ -132,7 +198,7 @@ function K8sPanel({ isOpen, onToggle, apiBase }) {
                 No activity yet. Upload a video to see live processing events.
               </div>
             ) : (
-              activity.map((a, i) => (
+              [...activity].reverse().map((a, i) => (
                 <div key={i} className="k8s-activity-item">
                   <span className="k8s-act-icon">{eventIcon(a.type)}</span>
                   <div className="k8s-act-content">

@@ -123,7 +123,7 @@ async def k8s_status():
         {
             "name": "golf-ai-api",
             "kind": "Service",
-            "status": "Active",
+            "status": "Running",
             "ready": True,
             "info": "ClusterIP :8000" if in_k8s else f"localhost:8000",
             "uptime": uptime_str,
@@ -131,7 +131,7 @@ async def k8s_status():
         {
             "name": "mediapipe-pose",
             "kind": "Model",
-            "status": "Loaded",
+            "status": "Running",
             "ready": True,
             "info": "Heavy model, CPU",
             "uptime": "",
@@ -139,7 +139,7 @@ async def k8s_status():
         {
             "name": "clip-vit-b32",
             "kind": "Model",
-            "status": "Loaded",
+            "status": "Running",
             "ready": True,
             "info": "HuggingFace ViT-B/32",
             "uptime": "",
@@ -150,7 +150,7 @@ async def k8s_status():
         components.append({
             "name": "model-cache",
             "kind": "PVC",
-            "status": "Bound",
+            "status": "Running",
             "ready": True,
             "info": f"ns/{namespace}",
             "uptime": "",
@@ -158,7 +158,7 @@ async def k8s_status():
         components.append({
             "name": "golf-ai-ingress",
             "kind": "Ingress",
-            "status": "Active",
+            "status": "Running",
             "ready": True,
             "info": f"ns/{namespace}",
             "uptime": "",

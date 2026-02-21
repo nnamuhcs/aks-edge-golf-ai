@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: golf-swing-ai-frontend:latest
+          image: golf-ai-frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
@@ -46,4 +46,5 @@ spec:
   ports:
     - port: 80
       targetPort: 80
-  type: ClusterIP
+      nodePort: 30080
+  type: NodePort

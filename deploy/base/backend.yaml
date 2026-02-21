@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: golf-swing-ai-backend:latest
+          image: golf-ai-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
