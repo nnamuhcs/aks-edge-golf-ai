@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: golf-ai
+
+# Override images to use locally-built tags (loaded via `kind load`)
+images:
+  - name: ghcr.io/nnamuhcs/golf-ai-backend
+    newName: golf-ai-backend
+    newTag: latest
+  - name: ghcr.io/nnamuhcs/golf-ai-frontend
+    newName: golf-ai-frontend
+    newTag: latest

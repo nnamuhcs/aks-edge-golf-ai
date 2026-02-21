@@ -36,6 +36,20 @@ Open **http://localhost:8000**
 
 ## Quick Start (Kind — Local Kubernetes)
 
+**Option A: Pull pre-built images (no build needed)**
+
+```bash
+# Create Kind cluster with port mapping
+kind create cluster --name golf-ai --config deploy/kind-config.yaml
+
+# Deploy — images pull from ghcr.io automatically
+kubectl apply -k deploy/base/
+```
+
+> ⏳ **Note:** The backend image is ~6GB (includes ML models). First pull may take 5–15 minutes depending on your internet speed. You can monitor progress with `kubectl get pods -n golf-ai -w`.
+
+**Option B: Build images locally**
+
 ```bash
 # Build images (backend ~5 min first time — downloads ML models)
 docker build -t golf-ai-backend:latest -f backend/Dockerfile backend/
@@ -44,9 +58,9 @@ docker build -t golf-ai-frontend:latest -f frontend/Dockerfile frontend/
 # Create Kind cluster with port mapping
 kind create cluster --name golf-ai --config deploy/kind-config.yaml
 
-# Load images & deploy
+# Load locally-built images into Kind & deploy
 kind load docker-image golf-ai-backend:latest golf-ai-frontend:latest --name golf-ai
-kubectl apply -k deploy/base/
+kubectl apply -k deploy/overlays/kind
 ```
 
 Open **http://localhost:3001** — no port-forward needed!

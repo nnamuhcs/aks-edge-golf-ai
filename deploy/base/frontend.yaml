@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: golf-ai-frontend:latest
+          image: ghcr.io/nnamuhcs/golf-ai-frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

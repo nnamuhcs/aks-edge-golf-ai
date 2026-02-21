@@ -6,12 +6,11 @@ resources:
 
 namespace: golf-ai
 
-# For demo, you can patch image names or replicas here
-# patches:
-#   - target:
-#       kind: Deployment
-#       name: golf-backend
-#     patch: |-
-#       - op: replace
-#         path: /spec/template/spec/containers/0/image
-#         value: myregistry.azurecr.io/golf-swing-ai-backend:latest
+# To use a custom registry (e.g., ACR), uncomment and edit:
+# images:
+#   - name: ghcr.io/nnamuhcs/golf-ai-backend
+#     newName: <yourregistry>.azurecr.io/golf-ai-backend
+#     newTag: latest
+#   - name: ghcr.io/nnamuhcs/golf-ai-frontend
+#     newName: <yourregistry>.azurecr.io/golf-ai-frontend
+#     newTag: latest

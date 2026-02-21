@@ -47,21 +47,12 @@ Open **http://localhost:8000** — the backend serves both the API and the front
 
 ## Option 2: Kind (Local Kubernetes)
 
-This is the recommended way to demo the full K8s deployment locally.
+This is the recommended way to demo the full K8s deployment locally. You have two paths:
 
-### Step 1: Build Docker images
+- **Path A** — Pull pre-built images from `ghcr.io` (no build required, but large download)
+- **Path B** — Build images locally (takes time, but no large download)
 
-```bash
-cd aks-edge-golf-ai
-
-# Build backend (includes ML models — takes ~5 min first time)
-docker build -t golf-ai-backend:latest -f backend/Dockerfile backend/
-
-# Build frontend
-docker build -t golf-ai-frontend:latest -f frontend/Dockerfile frontend/
-```
-
-### Step 2: Create Kind cluster
+### Step 1: Create Kind cluster
 
 ```bash
 # Create cluster with port mapping so NodePort is accessible on localhost
@@ -70,18 +61,36 @@ kind create cluster --name golf-ai --config deploy/kind-config.yaml
 
 The `deploy/kind-config.yaml` maps host port **3001** → container port **30080** (the frontend NodePort).
 
-### Step 3: Load images into Kind
+### Step 2: Deploy
 
-```bash
-kind load docker-image golf-ai-backend:latest golf-ai-frontend:latest --name golf-ai
-```
-
-> This transfers images into the Kind node's containerd. Takes a few minutes for the large backend image.
-
-### Step 4: Deploy
+**Path A: Use pre-built images (no build needed)**
 
 ```bash
 kubectl apply -k deploy/base/
+```
+
+The manifests reference `ghcr.io/nnamuhcs/golf-ai-backend:latest` and `ghcr.io/nnamuhcs/golf-ai-frontend:latest`. Kubernetes will pull them automatically.
+
+> ⏳ **Heads up:** The backend image is approximately **6GB** because it includes all ML models (MediaPipe, CLIP ViT-B/32, PyTorch). The first pull may take **5–15 minutes** depending on your connection speed. The frontend image is only ~93MB and pulls almost instantly.
+>
+> Monitor progress: `kubectl get pods -n golf-ai -w` — look for `ContainerCreating` → `Running`.
+
+**Path B: Build images locally**
+
+```bash
+cd aks-edge-golf-ai
+
+# Build backend (includes ML models — takes ~5 min first time)
+docker build -t golf-ai-backend:latest -f backend/Dockerfile backend/
+
+# Build frontend (~1 min)
+docker build -t golf-ai-frontend:latest -f frontend/Dockerfile frontend/
+
+# Load into Kind (transfers images into the node's containerd)
+kind load docker-image golf-ai-backend:latest golf-ai-frontend:latest --name golf-ai
+
+# Deploy using the kind overlay (points to local image names)
+kubectl apply -k deploy/overlays/kind
 ```
 
 ### Step 5: Verify
@@ -118,28 +127,38 @@ kind delete cluster --name golf-ai
 
 ## Option 3: AKS / Production Kubernetes
 
-### Step 1: Create a container registry (if needed)
+The base manifests already use public images from `ghcr.io/nnamuhcs/`. You can deploy directly or use your own registry.
+
+### Direct deploy (using public images)
 
 ```bash
+# Connect to your AKS cluster
+az aks get-credentials --name <cluster> --resource-group <rg>
+
+# Deploy
+kubectl apply -k deploy/base/
+```
+
+> ⏳ The backend image is ~6GB. Initial pull takes a few minutes on AKS nodes.
+
+### Using your own ACR (optional)
+
+```bash
+# Create registry
 az acr create --name <yourregistry> --resource-group <rg> --sku Basic
 az acr login --name <yourregistry>
-```
 
-### Step 2: Build and push images
-
-```bash
-# Build
+# Build and push
 docker build -t <yourregistry>.azurecr.io/golf-ai-backend:latest -f backend/Dockerfile backend/
 docker build -t <yourregistry>.azurecr.io/golf-ai-frontend:latest -f frontend/Dockerfile frontend/
-
-# Push
 docker push <yourregistry>.azurecr.io/golf-ai-backend:latest
 docker push <yourregistry>.azurecr.io/golf-ai-frontend:latest
+
+# Attach ACR to AKS
+az aks update --name <cluster> --resource-group <rg> --attach-acr <yourregistry>
 ```
 
-### Step 3: Update image references
-
-Edit `deploy/overlays/demo/kustomization.yaml` to patch the image names:
+Edit `deploy/overlays/demo/kustomization.yaml` to use your registry:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -151,27 +170,17 @@ resources:
 namespace: golf-ai
 
 images:
-  - name: golf-ai-backend
+  - name: ghcr.io/nnamuhcs/golf-ai-backend
     newName: <yourregistry>.azurecr.io/golf-ai-backend
     newTag: latest
-  - name: golf-ai-frontend
+  - name: ghcr.io/nnamuhcs/golf-ai-frontend
     newName: <yourregistry>.azurecr.io/golf-ai-frontend
     newTag: latest
 ```
 
-### Step 4: Configure AKS to pull from ACR
+Then deploy with: `kubectl apply -k deploy/overlays/demo`
 
-```bash
-az aks update --name <cluster> --resource-group <rg> --attach-acr <yourregistry>
-```
-
-### Step 5: Deploy
-
-```bash
-kubectl apply -k deploy/overlays/demo
-```
-
-### Step 6: Expose the service
+### Expose the service
 
 For AKS, change the frontend service type to `LoadBalancer`:
 

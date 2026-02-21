@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: golf-ai-backend:latest
+          image: ghcr.io/nnamuhcs/golf-ai-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
