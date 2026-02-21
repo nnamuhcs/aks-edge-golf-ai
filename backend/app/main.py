@@ -52,6 +52,11 @@ app.add_middleware(
 # Serve generated analysis assets (images)
 app.mount("/results-assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
 
+# Serve pre-generated static reference screenshots
+_static_refs = Path(__file__).resolve().parent.parent / "static" / "references"
+_static_refs.mkdir(parents=True, exist_ok=True)
+app.mount("/static/references", StaticFiles(directory=str(_static_refs)), name="references")
+
 
 @app.get("/api/health")
 async def health():
@@ -60,8 +65,9 @@ async def health():
 
 @app.get("/api/k8s/status")
 async def k8s_status():
-    """Return K8s component status and recent activity feed."""
+    """Return K8s component status, system metrics, and recent activity feed."""
     import socket
+    import psutil
     hostname = socket.gethostname()
     pod_ip = socket.gethostbyname(hostname)
 
@@ -79,6 +85,31 @@ async def k8s_status():
     hours, rem = divmod(uptime, 3600)
     mins, secs = divmod(rem, 60)
     uptime_str = f"{hours}h {mins}m {secs}s" if hours else f"{mins}m {secs}s"
+
+    # ── Real system metrics ──
+    cpu_percent = psutil.cpu_percent(interval=0)
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    disk_io = psutil.disk_io_counters()
+    net_io = psutil.net_io_counters()
+    proc = psutil.Process(os.getpid())
+    proc_mem = proc.memory_info()
+
+    metrics = {
+        "cpu_percent": round(cpu_percent, 1),
+        "cpu_cores": psutil.cpu_count(),
+        "mem_used_gb": round(mem.used / (1024**3), 2),
+        "mem_total_gb": round(mem.total / (1024**3), 2),
+        "mem_percent": round(mem.percent, 1),
+        "disk_used_gb": round(disk.used / (1024**3), 1),
+        "disk_total_gb": round(disk.total / (1024**3), 1),
+        "disk_percent": round(disk.percent, 1),
+        "disk_read_mb": round(disk_io.read_bytes / (1024**2), 1) if disk_io else 0,
+        "disk_write_mb": round(disk_io.write_bytes / (1024**2), 1) if disk_io else 0,
+        "net_sent_mb": round(net_io.bytes_sent / (1024**2), 1) if net_io else 0,
+        "net_recv_mb": round(net_io.bytes_recv / (1024**2), 1) if net_io else 0,
+        "proc_mem_mb": round(proc_mem.rss / (1024**2), 1),
+    }
 
     components = [
         {
@@ -133,15 +164,23 @@ async def k8s_status():
             "uptime": "",
         })
 
-    # Recent activity (last 50)
-    activity = list(_activity_log)[-50:]
+    # Recent activity (last 20 key events only)
+    activity = list(_activity_log)[-20:]
 
     return {
         "namespace": namespace,
         "in_k8s": in_k8s,
         "components": components,
+        "metrics": metrics,
         "activity": activity,
     }
+
+
+@app.post("/api/k8s/clear-activity")
+async def clear_activity():
+    """Clear the activity log."""
+    _activity_log.clear()
+    return {"status": "cleared"}
 
 
 @app.post("/api/upload")

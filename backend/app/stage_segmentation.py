@@ -1,11 +1,21 @@
 """Stage segmentation: classify each frame to find the best match for each swing stage."""
+import json
 import numpy as np
 import cv2
 import logging
+from pathlib import Path
 from typing import List, Dict, Optional
 from .config import SWING_STAGES
 
 logger = logging.getLogger(__name__)
+
+# Load reference stage profiles (learned from verified reference frames)
+_PROFILES_PATH = Path(__file__).parent / "stage_profiles.json"
+_STAGE_PROFILES: Dict[str, dict] = {}
+if _PROFILES_PATH.exists():
+    with open(_PROFILES_PATH) as f:
+        _STAGE_PROFILES = json.load(f)
+    logger.info(f"Loaded {len(_STAGE_PROFILES)} stage profiles from {_PROFILES_PATH.name}")
 
 
 def _smooth(arr: np.ndarray, n: int) -> np.ndarray:
@@ -194,8 +204,42 @@ def segment_swing_stages(
     # ============================================================
     # Step 6: Refine each interpolated stage toward best local frame
     # ============================================================
+    def _profile_similarity(frame_idx, stage):
+        """Compute similarity between a frame's pose and the reference profile for a stage.
+        Returns 0-1 score (1 = perfect match). Returns 0 if no profile or no pose."""
+        if stage not in _STAGE_PROFILES or poses[frame_idx] is None:
+            return 0.0
+
+        prof = _STAGE_PROFILES[stage]
+        p = poses[frame_idx]
+
+        lw = p.get("left_wrist", (0.5, 0.5, 0))
+        rw = p.get("right_wrist", (0.5, 0.5, 0))
+        ls = p.get("left_shoulder", (0.5, 0.5, 0))
+        rs = p.get("right_shoulder", (0.5, 0.5, 0))
+
+        frame_wrist_y = (lw[1] + rw[1]) / 2
+        frame_wrist_x = (lw[0] + rw[0]) / 2
+        frame_shoulder_y = (ls[1] + rs[1]) / 2
+        frame_hands_height = frame_shoulder_y - frame_wrist_y
+        frame_hands_lateral = frame_wrist_x - (ls[0] + rs[0]) / 2
+
+        # Compare key pose features to reference profile
+        diffs = []
+        # Wrist height (most discriminative between stages)
+        diffs.append(abs(frame_wrist_y - prof["avg_wrist_y"]) * 3.0)
+        # Hands lateral position (left/right relative to shoulders)
+        diffs.append(abs(frame_hands_lateral - prof["hands_lateral_offset"]) * 2.0)
+        # Hands above/below shoulders
+        diffs.append(abs(frame_hands_height - prof["hands_height_above_shoulders"]) * 2.0)
+
+        avg_diff = sum(diffs) / len(diffs)
+        # Convert to 0-1 similarity (exponential decay)
+        return float(np.exp(-avg_diff * 5.0))
+
     def _refine_stage(center_idx, stage, search_range=None):
-        """Search around center for frame that best matches stage criteria."""
+        """Search around center for frame that best matches stage criteria,
+        combining motion heuristics with learned profile similarity."""
         if search_range is None:
             search_range = max(3, n // 20)
         lo = max(0, center_idx - search_range)
@@ -208,18 +252,23 @@ def segment_swing_stages(
             m_norm = motion[i] / max(motion_max, 0.1)
             st_norm = stillness[i] / max(np.max(stillness), 0.1)
 
+            # Heuristic scoring (original logic)
             if stage == "takeaway":
-                s += (1.0 - abs(wy_norm - 0.7)) * 2.0  # hands slightly raised
-                s += min(m_norm * 2, 1.0)                # some motion
+                s += (1.0 - abs(wy_norm - 0.7)) * 2.0
+                s += min(m_norm * 2, 1.0)
             elif stage == "backswing":
-                s += (1.0 - wy_norm) * 2.0               # hands going up
-                s += min(m_norm * 2, 1.0)                 # moderate motion
+                s += (1.0 - wy_norm) * 2.0
+                s += min(m_norm * 2, 1.0)
             elif stage == "downswing":
-                s += m_norm * 3.0                         # fast motion
-                s += (1.0 - wy_norm) * 1.0                # hands still high-ish
+                s += m_norm * 3.0
+                s += (1.0 - wy_norm) * 1.0
             elif stage == "follow_through":
-                s += m_norm * 2.0                         # still fast
-                s += (1.0 - wy_norm) * 1.5                # hands rising
+                s += m_norm * 2.0
+                s += (1.0 - wy_norm) * 1.5
+
+            # Profile similarity bonus (learned from reference)
+            profile_sim = _profile_similarity(i, stage)
+            s += profile_sim * 3.0  # strong weight on profile match
 
             # Proximity to original estimate
             dist = abs(i - center_idx) / max(search_range, 1)

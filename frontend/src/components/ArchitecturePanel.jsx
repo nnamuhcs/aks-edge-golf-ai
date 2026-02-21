@@ -2,15 +2,15 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 
 /* ── Layout: all positions in a virtual 1000×600 canvas ── */
 const NODES = [
-  { id: 'user',      label: '📹 Video Upload',       desc: 'Drag & drop golf swing video',       group: 'frontend', cx: 500, cy: 45,  w: 190, h: 52 },
-  { id: 'api',       label: '⚡ FastAPI Gateway',     desc: 'POST /upload • GET /status • GET /result', group: 'backend',  cx: 500, cy: 140, w: 210, h: 52 },
-  { id: 'decoder',   label: '🎬 Video Decoder',       desc: 'ffmpeg • Two-pass swing detection',   group: 'pipeline', cx: 170, cy: 250, w: 200, h: 52 },
-  { id: 'pose',      label: '🦴 Pose Estimation',     desc: 'MediaPipe Heavy • 33 landmarks',     group: 'ml',       cx: 500, cy: 250, w: 200, h: 52 },
-  { id: 'segment',   label: '📐 Stage Segmentation',  desc: 'Anchor-based • 8 swing stages',      group: 'pipeline', cx: 830, cy: 250, w: 210, h: 52 },
-  { id: 'scoring',   label: '🎯 Scoring Engine',      desc: 'Gaussian curves • Body metrics → 0-100', group: 'pipeline', cx: 170, cy: 370, w: 200, h: 52 },
-  { id: 'reference', label: '🏆 Reference Matcher',   desc: 'CLIP ViT-B/32 • Pro golfer similarity', group: 'ml',       cx: 500, cy: 370, w: 210, h: 52 },
-  { id: 'annotator', label: '🖊️ Frame Annotator',     desc: 'Skeleton • Arrows • Side-by-side',    group: 'pipeline', cx: 830, cy: 370, w: 200, h: 52 },
-  { id: 'results',   label: '📊 Results & Coaching',  desc: 'Scores • Actionable tips • Comparisons', group: 'frontend', cx: 500, cy: 490, w: 210, h: 52 },
+  { id: 'user',      label: '📹 Video Upload',       desc: 'Drag & drop golf swing video',       group: 'frontend', cx: 500, cy: 45,  w: 200, h: 62, k8s: 'Served by Ingress' },
+  { id: 'api',       label: '⚡ FastAPI Gateway',     desc: 'POST /upload • GET /status • GET /result', group: 'backend',  cx: 500, cy: 155, w: 220, h: 62, k8s: 'Pod: golf-ai-backend' },
+  { id: 'decoder',   label: '🎬 Video Decoder',       desc: 'ffmpeg • Two-pass swing detection',   group: 'pipeline', cx: 170, cy: 280, w: 210, h: 62, k8s: 'Container: backend' },
+  { id: 'pose',      label: '🦴 Pose Estimation',     desc: 'MediaPipe Heavy • 33 landmarks',     group: 'ml',       cx: 500, cy: 280, w: 210, h: 62, k8s: 'PVC: model-cache' },
+  { id: 'segment',   label: '📐 Stage Segmentation',  desc: 'Anchor-based • 8 swing stages',      group: 'pipeline', cx: 830, cy: 280, w: 220, h: 62, k8s: 'Container: backend' },
+  { id: 'scoring',   label: '🎯 Scoring Engine',      desc: 'Gaussian curves • Body metrics → 0-100', group: 'pipeline', cx: 170, cy: 410, w: 210, h: 62, k8s: 'Container: backend' },
+  { id: 'reference', label: '🏆 Reference Matcher',   desc: 'CLIP ViT-B/32 • Pro golfer similarity', group: 'ml',       cx: 500, cy: 410, w: 220, h: 62, k8s: 'PVC: model-cache' },
+  { id: 'annotator', label: '🖊️ Frame Annotator',     desc: 'Skeleton • Arrows • Side-by-side',    group: 'pipeline', cx: 830, cy: 410, w: 210, h: 62, k8s: 'PVC: results-pvc' },
+  { id: 'results',   label: '📊 Results & Coaching',  desc: 'Scores • Actionable tips • Comparisons', group: 'frontend', cx: 500, cy: 540, w: 220, h: 62, k8s: 'Svc: golf-ai-api:8000' },
 ]
 
 const EDGES = [
@@ -41,7 +41,7 @@ const TECH_STACK = [
   { category: 'Frontend', items: ['React 18', 'Vite', 'CSS3 Custom Properties'] },
   { category: 'Backend', items: ['Python 3.11', 'FastAPI', 'uvicorn', 'OpenCV', 'ffmpeg'] },
   { category: 'ML Models', items: ['MediaPipe Pose (Heavy)', 'CLIP ViT-B/32 (HuggingFace)'] },
-  { category: 'Infrastructure', items: ['Docker multi-stage', 'Kubernetes', 'AKS Edge'] },
+  { category: 'Infrastructure', items: ['Kubernetes', 'AKS Edge'] },
 ]
 
 const GROUP_COLORS = {
@@ -90,10 +90,11 @@ function edgeMid(fromNode, toNode) {
 
 function ArchitecturePanel({ onBack }) {
   const [hovered, setHovered] = useState(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // Zoom / Pan state
   const svgRef = useRef(null)
-  const [viewBox, setViewBox] = useState({ x: -20, y: -10, w: 1040, h: 560 })
+  const [viewBox, setViewBox] = useState({ x: -20, y: -10, w: 1040, h: 620 })
   const [isPanning, setIsPanning] = useState(false)
   const panStart = useRef({ mx: 0, my: 0, vx: 0, vy: 0 })
 
@@ -140,7 +141,7 @@ function ArchitecturePanel({ onBack }) {
 
   const handlePointerUp = useCallback(() => setIsPanning(false), [])
 
-  const resetZoom = () => setViewBox({ x: -20, y: -10, w: 1040, h: 560 })
+  const resetZoom = () => setViewBox({ x: -20, y: -10, w: 1040, h: 620 })
 
   // Attach wheel listener with passive:false
   useEffect(() => {
@@ -149,6 +150,14 @@ function ArchitecturePanel({ onBack }) {
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
   }, [handleWheel])
+
+  // Escape key exits fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e) => { if (e.key === 'Escape') setIsFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isFullscreen])
 
   const connectedEdges = (nodeId) =>
     EDGES.filter(e => e.from === nodeId || e.to === nodeId)
@@ -175,10 +184,22 @@ function ArchitecturePanel({ onBack }) {
           Scroll to zoom • Drag to pan
         </div>
         <button className="arch-zoom-reset" onClick={resetZoom} title="Reset zoom">⟲ Reset</button>
+        <button className="arch-zoom-reset" onClick={() => setIsFullscreen(!isFullscreen)} title="Toggle fullscreen">
+          {isFullscreen ? '⊠ Exit' : '⛶ Fullscreen'}
+        </button>
       </div>
 
       {/* Flowchart — pure SVG with zoom/pan */}
-      <div className="arch-canvas-wrap">
+      <div className={`arch-canvas-wrap ${isFullscreen ? 'fullscreen' : ''}`}>
+        {isFullscreen && (
+          <div className="arch-fs-toolbar">
+            <span className="arch-fs-title">System Architecture — Golf Swing AI Coacher</span>
+            <div className="arch-fs-actions">
+              <button className="arch-zoom-reset" onClick={resetZoom}>⟲ Reset Zoom</button>
+              <button className="arch-zoom-reset" onClick={() => setIsFullscreen(false)}>✕ Close</button>
+            </div>
+          </div>
+        )}
         <svg
           ref={svgRef}
           className="arch-svg"
@@ -274,58 +295,60 @@ function ArchitecturePanel({ onBack }) {
         </svg>
       </div>
 
-      {/* K8s Architecture */}
-      <div className="arch-k8s-section">
-        <h3 className="arch-section-title">
-          <span>☸</span> Kubernetes Deployment — AKS Edge
-        </h3>
-        <div className="arch-k8s-grid">
-          {K8S_COMPONENTS.map((comp, i) => (
-            <div key={i} className="arch-k8s-card">
-              <div className="arch-k8s-icon">{comp.icon}</div>
-              <div className="arch-k8s-info">
-                <div className="arch-k8s-name">{comp.name}</div>
-                <div className="arch-k8s-kind">{comp.kind}</div>
-                <div className="arch-k8s-desc">{comp.desc}</div>
+      {/* Bottom sections — 3-column grid */}
+      <div className="arch-bottom-sections">
+        {/* K8s Architecture */}
+        <div className="arch-k8s-section">
+          <h3 className="arch-section-title">
+            <span>☸</span> K8s Deployment
+          </h3>
+          <div className="arch-k8s-grid">
+            {K8S_COMPONENTS.map((comp, i) => (
+              <div key={i} className="arch-k8s-card">
+                <div className="arch-k8s-icon">{comp.icon}</div>
+                <div className="arch-k8s-info">
+                  <div className="arch-k8s-name">{comp.name}</div>
+                  <div className="arch-k8s-kind">{comp.kind}</div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Tech Stack */}
-      <div className="arch-stack-section">
-        <h3 className="arch-section-title">
-          <span>🛠️</span> Technology Stack
-        </h3>
-        <div className="arch-stack-grid">
-          {TECH_STACK.map((cat, i) => (
-            <div key={i} className="arch-stack-card">
-              <div className="arch-stack-category">{cat.category}</div>
-              <div className="arch-stack-items">
-                {cat.items.map((item, j) => (
-                  <span key={j} className="arch-stack-tag">{item}</span>
-                ))}
+        {/* Tech Stack */}
+        <div className="arch-stack-section">
+          <h3 className="arch-section-title">
+            <span>🛠️</span> Tech Stack
+          </h3>
+          <div className="arch-stack-grid">
+            {TECH_STACK.map((cat, i) => (
+              <div key={i} className="arch-stack-card">
+                <div className="arch-stack-category">{cat.category}</div>
+                <div className="arch-stack-items">
+                  {cat.items.map((item, j) => (
+                    <span key={j} className="arch-stack-tag">{item}</span>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Data Flow */}
-      <div className="arch-flow-section">
-        <h3 className="arch-section-title">
-          <span>🔄</span> Data Flow
-        </h3>
-        <div className="arch-flow-steps">
-          {FLOW_STEPS.map((s, i) => (
-            <div key={i} className="arch-flow-step">
-              <div className="arch-flow-num">{s.step}</div>
-              <div className="arch-flow-icon">{s.icon}</div>
-              <div className="arch-flow-title">{s.title}</div>
-              <div className="arch-flow-desc">{s.desc}</div>
-            </div>
-          ))}
+        {/* Data Flow */}
+        <div className="arch-flow-section">
+          <h3 className="arch-section-title">
+            <span>🔄</span> Data Flow
+          </h3>
+          <div className="arch-flow-steps">
+            {FLOW_STEPS.map((s, i) => (
+              <div key={i} className="arch-flow-step">
+                <div className="arch-flow-num">{s.step}</div>
+                <div className="arch-flow-icon">{s.icon}</div>
+                <div className="arch-flow-title">{s.title}</div>
+                <div className="arch-flow-desc">{s.desc}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from .config import (
-    UPLOAD_DIR, RESULTS_DIR, ASSETS_DIR, REFERENCE_DIR,
+    UPLOAD_DIR, RESULTS_DIR, ASSETS_DIR,
     SWING_STAGES, STAGE_DISPLAY_NAMES,
 )
 from .video_decoder import extract_frames
@@ -18,7 +18,6 @@ from .stage_segmentation import segment_swing_stages
 from .orientation import normalize_orientation, resize_to_match
 from .scoring import score_stage, compute_overall_score, generate_stage_feedback
 from .annotator import annotate_stage_frame
-from .reference_matcher import ReferenceManager
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,6 @@ TARGET_WIDTH = 640
 
 # Global singletons (lazy)
 _pose_estimator: Optional[PoseEstimator] = None
-_reference_manager: Optional[ReferenceManager] = None
 
 
 def _get_pose_estimator() -> PoseEstimator:
@@ -35,13 +33,6 @@ def _get_pose_estimator() -> PoseEstimator:
     if _pose_estimator is None:
         _pose_estimator = PoseEstimator()
     return _pose_estimator
-
-
-def _get_reference_manager() -> ReferenceManager:
-    global _reference_manager
-    if _reference_manager is None:
-        _reference_manager = ReferenceManager(REFERENCE_DIR)
-    return _reference_manager
 
 
 # Job status store (in-memory for demo)
@@ -203,7 +194,6 @@ def run_analysis(job_id: str):
         log_activity("pipeline", "Swing stages segmented", "Anchor-based detection: impact→top→address→finish")
 
         # Step 4: Per-stage analysis
-        ref_mgr = _get_reference_manager()
         stage_results = []
         all_stage_scores = {}
 
@@ -242,45 +232,27 @@ def run_analysis(job_id: str):
                 user_frame_resized, landmarks, stage, metric_scores, metrics, is_reference=False
             )
 
-            # Get reference frame
-            ref_frame = ref_mgr.get_reference_frame(stage, frame)
-            ref_annotated = None
-            ref_landmarks = None
-
-            if ref_frame is not None:
-                # Resize reference preserving ITS OWN aspect ratio
-                rh, rw = ref_frame.shape[:2]
-                ref_scale = TARGET_WIDTH / rw
-                ref_h = int(rh * ref_scale)
-                ref_size = (TARGET_WIDTH, ref_h)
-                ref_frame_resized = cv2.resize(ref_frame, ref_size, interpolation=cv2.INTER_AREA)
-                # Detect pose on reference
-                ref_landmarks = pose.detect(ref_frame_resized)
-                if ref_landmarks:
-                    ref_metrics = compute_body_metrics(ref_landmarks)
-                    ref_score, ref_metric_scores = score_stage(stage, ref_metrics)
-                else:
-                    ref_metric_scores = {}
-                    ref_metrics = {}
-
-                ref_annotated = annotate_stage_frame(
-                    ref_frame_resized, ref_landmarks, stage,
-                    ref_metric_scores, ref_metrics, is_reference=True
-                )
-            else:
-                # Create placeholder reference
-                ref_annotated = _create_placeholder_reference(stage, user_size)
+            # Use pre-generated static reference image
+            static_ref_path = Path(__file__).resolve().parent.parent / "static" / "references" / f"{stage}_reference.jpg"
 
             # Save images
             user_img_name = f"{stage}_user.jpg"
-            ref_img_name = f"{stage}_reference.jpg"
             cv2.imwrite(str(job_assets_dir / user_img_name), user_annotated, [cv2.IMWRITE_JPEG_QUALITY, 92])
-            cv2.imwrite(str(job_assets_dir / ref_img_name), ref_annotated, [cv2.IMWRITE_JPEG_QUALITY, 92])
+
+            # Reference is a static asset, just point to it
+            if static_ref_path.exists():
+                ref_image_url = f"/static/references/{stage}_reference.jpg"
+            else:
+                # Fallback: create placeholder in job folder
+                ref_img_name = f"{stage}_reference.jpg"
+                placeholder = _create_placeholder_reference(stage, user_size)
+                cv2.imwrite(str(job_assets_dir / ref_img_name), placeholder, [cv2.IMWRITE_JPEG_QUALITY, 92])
+                ref_image_url = f"/results-assets/{job_id}/{ref_img_name}"
 
             stage_result = {
                 **feedback,
                 "user_image": f"/results-assets/{job_id}/{user_img_name}",
-                "reference_image": f"/results-assets/{job_id}/{ref_img_name}",
+                "reference_image": ref_image_url,
             }
             stage_results.append(stage_result)
 

@@ -51,50 +51,69 @@ function App() {
     setError(null)
   }, [])
 
+  const footer = (
+    <footer className="footer">
+      <div className="footer-row">
+        <span className="footer-brand">🏌️ Local AI on <a href="https://learn.microsoft.com/en-us/azure/aks/aksarc/" target="_blank" rel="noopener noreferrer">AKS Edge</a> · Demo only — don't bet your handicap on it</span>
+        <span className="footer-links">
+          <a href="https://github.com/schumann-ge/aks-edge-golf-ai" target="_blank" rel="noopener noreferrer">Make it better on GitHub</a>
+          <span className="footer-sep">·</span>
+          <a href="mailto:schumann.ge@microsoft.com">Contact Schumann</a>
+          <span className="footer-sep">·</span>
+          <span>© {new Date().getFullYear()}</span>
+        </span>
+      </div>
+    </footer>
+  )
+
   return (
     <div className={`app ${k8sOpen ? 'k8s-open' : ''}`}>
-      <header className="header">
-        <img src="/golf-icon.svg" alt="" className="header-icon" />
-        <div className="header-titles">
-          <h1>Golf Swing <span>AI Coacher</span></h1>
-          <p className="header-subtitle">Schumann's AKS Edge Demo</p>
-        </div>
-        <nav className="header-nav">
-          <button
-            className={`nav-btn ${view !== 'architecture' ? 'active' : ''}`}
-            onClick={handleReset}
-          >🏌️ Coacher</button>
-          <button
-            className={`nav-btn ${view === 'architecture' ? 'active' : ''}`}
-            onClick={() => setView('architecture')}
-          >🏗️ Architecture</button>
-        </nav>
-      </header>
+      <div className="header-bar">
+        <header className="header">
+          <img src="/golf-icon.svg" alt="" className="header-icon" />
+          <div className="header-titles">
+            <h1>Golf Swing <span>AI Coacher</span></h1>
+            <p className="header-subtitle">Schumann's AKS Edge Demo</p>
+          </div>
+          <nav className="header-nav">
+            <button
+              className={`nav-btn ${view !== 'architecture' ? 'active' : ''}`}
+              onClick={handleReset}
+            >🏌️ Coacher</button>
+            <button
+              className={`nav-btn ${view === 'architecture' ? 'active' : ''}`}
+              onClick={() => setView('architecture')}
+            >🏗️ Architecture</button>
+          </nav>
+        </header>
+      </div>
 
       <div className="app-body">
         <main className="main">
-          {error && <div className="error-message">{error}</div>}
+          <div className="main-content">
+            {error && <div className="error-message">{error}</div>}
 
-          {view === 'architecture' && (
-            <ArchitecturePanel onBack={handleReset} />
-          )}
+            {view === 'architecture' && (
+              <ArchitecturePanel onBack={handleReset} />
+            )}
 
-          {view === 'upload' && (
-            <UploadPanel onUpload={handleUpload} videoUrl={videoUrl} />
-          )}
+            {view === 'upload' && (
+              <UploadPanel onUpload={handleUpload} videoUrl={videoUrl} />
+            )}
 
-          {view === 'progress' && jobId && (
-            <ProgressPanel
-              jobId={jobId}
-              apiBase={API_BASE}
-              onComplete={handleAnalysisComplete}
-              onError={(msg) => { setError(msg); setView('upload') }}
-            />
-          )}
+            {view === 'progress' && jobId && (
+              <ProgressPanel
+                jobId={jobId}
+                apiBase={API_BASE}
+                onComplete={handleAnalysisComplete}
+                onError={(msg) => { setError(msg); setView('upload') }}
+              />
+            )}
 
-          {view === 'results' && result && (
-            <ResultsPanel result={result} onReset={handleReset} />
-          )}
+            {view === 'results' && result && (
+              <ResultsPanel result={result} onReset={handleReset} />
+            )}
+          </div>
         </main>
 
         <K8sPanel
@@ -103,6 +122,8 @@ function App() {
           apiBase={API_BASE}
         />
       </div>
+
+      {footer}
     </div>
   )
 }

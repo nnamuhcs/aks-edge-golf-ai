@@ -1,0 +1,170 @@
+{
+  "address": {
+    "metrics": {
+      "shoulder_tilt": 27.41,
+      "hip_tilt": 13.36,
+      "hip_shoulder_separation": 14.05,
+      "spine_angle": 47.28,
+      "left_knee_angle": 149.42,
+      "right_knee_angle": 125.61,
+      "left_arm_angle": 153.24,
+      "right_arm_angle": 160.44,
+      "head_sway": 0.33,
+      "left_wrist_height": 0.62,
+      "right_wrist_height": 0.63,
+      "stance_width": 0.06
+    },
+    "avg_wrist_y": 0.6232,
+    "avg_wrist_x": 0.4513,
+    "hands_height_above_shoulders": -0.2235,
+    "hands_lateral_offset": 0.0019,
+    "wrist_above_shoulder": false
+  },
+  "takeaway": {
+    "metrics": {
+      "shoulder_tilt": 1.6,
+      "hip_tilt": 6.39,
+      "hip_shoulder_separation": 4.79,
+      "spine_angle": 48.26,
+      "left_knee_angle": 143.15,
+      "right_knee_angle": 123.92,
+      "left_arm_angle": 158.3,
+      "right_arm_angle": 167.67,
+      "head_sway": 0.34,
+      "left_wrist_height": 0.62,
+      "right_wrist_height": 0.63,
+      "stance_width": 0.06
+    },
+    "avg_wrist_y": 0.6268,
+    "avg_wrist_x": 0.4479,
+    "hands_height_above_shoulders": -0.2212,
+    "hands_lateral_offset": 0.0014,
+    "wrist_above_shoulder": false
+  },
+  "backswing": {
+    "metrics": {
+      "shoulder_tilt": -20.95,
+      "hip_tilt": -7.36,
+      "hip_shoulder_separation": 13.59,
+      "spine_angle": 41.59,
+      "left_knee_angle": 123.47,
+      "right_knee_angle": 155.8,
+      "left_arm_angle": 174.06,
+      "right_arm_angle": 146.03,
+      "head_sway": 0.29,
+      "left_wrist_height": 0.54,
+      "right_wrist_height": 0.54,
+      "stance_width": 0.06
+    },
+    "avg_wrist_y": 0.5366,
+    "avg_wrist_x": 0.3331,
+    "hands_height_above_shoulders": -0.1385,
+    "hands_lateral_offset": -0.1004,
+    "wrist_above_shoulder": false
+  },
+  "top": {
+    "metrics": {
+      "shoulder_tilt": -18.99,
+      "hip_tilt": -7.1,
+      "hip_shoulder_separation": 11.89,
+      "spine_angle": 44.99,
+      "left_knee_angle": 109.38,
+      "right_knee_angle": 154.8,
+      "left_arm_angle": 159.84,
+      "right_arm_angle": 78.83,
+      "head_sway": 0.28,
+      "left_wrist_height": 0.29,
+      "right_wrist_height": 0.29,
+      "stance_width": 0.06
+    },
+    "avg_wrist_y": 0.2913,
+    "avg_wrist_x": 0.2524,
+    "hands_height_above_shoulders": 0.116,
+    "hands_lateral_offset": -0.1899,
+    "wrist_above_shoulder": true
+  },
+  "downswing": {
+    "metrics": {
+      "shoulder_tilt": 1.55,
+      "hip_tilt": 4.84,
+      "hip_shoulder_separation": 3.29,
+      "spine_angle": 51.39,
+      "left_knee_angle": 150.17,
+      "right_knee_angle": 122.3,
+      "left_arm_angle": 168.76,
+      "right_arm_angle": 121.14,
+      "head_sway": 0.3,
+      "left_wrist_height": 0.62,
+      "right_wrist_height": 0.62,
+      "stance_width": 0.05
+    },
+    "avg_wrist_y": 0.6206,
+    "avg_wrist_x": 0.5012,
+    "hands_height_above_shoulders": -0.2024,
+    "hands_lateral_offset": 0.0707,
+    "wrist_above_shoulder": false
+  },
+  "impact": {
+    "metrics": {
+      "shoulder_tilt": 36.42,
+      "hip_tilt": 7.01,
+      "hip_shoulder_separation": 29.41,
+      "spine_angle": 39.1,
+      "left_knee_angle": 169.28,
+      "right_knee_angle": 140.97,
+      "left_arm_angle": 74.45,
+      "right_arm_angle": 15.14,
+      "head_sway": 0.29,
+      "left_wrist_height": 0.45,
+      "right_wrist_height": 0.47,
+      "stance_width": 0.01
+    },
+    "avg_wrist_y": 0.4581,
+    "avg_wrist_x": 0.4322,
+    "hands_height_above_shoulders": -0.0916,
+    "hands_lateral_offset": 0.0234,
+    "wrist_above_shoulder": false
+  },
+  "follow_through": {
+    "metrics": {
+      "shoulder_tilt": 20.71,
+      "hip_tilt": 5.24,
+      "hip_shoulder_separation": 15.47,
+      "spine_angle": 35.35,
+      "left_knee_angle": 164.32,
+      "right_knee_angle": 149.27,
+      "left_arm_angle": 3.72,
+      "right_arm_angle": 89.3,
+      "head_sway": 0.26,
+      "left_wrist_height": 0.32,
+      "right_wrist_height": 0.36,
+      "stance_width": 0.07
+    },
+    "avg_wrist_y": 0.3429,
+    "avg_wrist_x": 0.3501,
+    "hands_height_above_shoulders": 0.0109,
+    "hands_lateral_offset": -0.0699,
+    "wrist_above_shoulder": true
+  },
+  "finish": {
+    "metrics": {
+      "shoulder_tilt": 10.62,
+      "hip_tilt": 0.48,
+      "hip_shoulder_separation": 10.13,
+      "spine_angle": 26.46,
+      "left_knee_angle": 169.96,
+      "right_knee_angle": 175.35,
+      "left_arm_angle": 86.09,
+      "right_arm_angle": 174.95,
+      "head_sway": 0.2,
+      "left_wrist_height": 0.26,
+      "right_wrist_height": 0.25,
+      "stance_width": 0.1
+    },
+    "avg_wrist_y": 0.2548,
+    "avg_wrist_x": 0.2029,
+    "hands_height_above_shoulders": 0.0848,
+    "hands_lateral_offset": -0.2115,
+    "wrist_above_shoulder": true
+  }
+}
