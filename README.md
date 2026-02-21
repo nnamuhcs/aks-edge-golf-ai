@@ -1,71 +1,95 @@
 # AKS Edge Golf AI – Swing Analyzer
 
-A production-grade, containerized golf swing analyzer powered by AI. Upload a video, get instant stage-by-stage feedback with annotated side-by-side comparisons against good practice references.
+A production-grade, containerized golf swing analyzer powered by AI — built for **Azure Kubernetes Service (AKS)**, **AKS Arc**, and **AKS Edge Essentials**. Upload a golf swing video and get instant stage-by-stage feedback with annotated side-by-side comparisons against good practice references.
 
 ## Features
 
 - 🎥 **Video Upload** – Drag & drop or browse; supports MP4, MOV, AVI, WebM
-- 🤖 **AI Analysis** – MediaPipe pose estimation + CLIP embedding matching
+- 🤖 **AI Analysis** – MediaPipe pose estimation + CLIP embedding matching (all local, no cloud APIs)
 - 📊 **8-Stage Breakdown** – Address → Takeaway → Backswing → Top → Downswing → Impact → Follow-Through → Finish
 - 🎯 **Per-Stage Scoring** – 0–100 score with detailed good/bad/why/tips feedback
 - 🖼️ **Side-by-Side Comparison** – Annotated user vs. reference frames with skeleton overlays and callouts
 - 🔍 **Click to Enlarge** – Lightbox for detailed frame inspection
-- ☸️ **K8s Ready** – Deploy to AKS, Kind, or any conformant K8s cluster
+- ☸️ **AKS Ready** – Deploy to AKS, AKS Arc, AKS Edge Essentials, or any conformant K8s cluster
 - 📐 **Architecture Viewer** – Interactive system architecture diagram built into the UI
 - 📡 **Live K8s Panel** – Real-time cluster status when running in Kubernetes
 
-## Quick Start (Local — No Docker)
+## Quick Start
+
+### Prerequisites
+
+| Tool | Version | Install |
+|------|---------|---------|
+| kubectl | 1.28+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
+| Azure CLI | 2.50+ | [learn.microsoft.com](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) |
+
+### Deploy to AKS (Azure Kubernetes Service)
 
 ```bash
+# 1. Clone the repo
 git clone https://github.com/nnamuhcs/aks-edge-golf-ai.git
 cd aks-edge-golf-ai
 
-# Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-# First run downloads CLIP model (~600MB) from HuggingFace
+# 2. Connect to your AKS cluster
+az login
+az aks get-credentials --name <your-cluster> --resource-group <your-rg>
 
-# Frontend (separate terminal)
-cd frontend
-npm install && npm run build
-# Backend serves the built frontend at http://localhost:8000
-```
-
-Open **http://localhost:8000**
-
-## Quick Start (Kind — Local Kubernetes)
-
-**Option A: Pull pre-built images (no build needed)**
-
-```bash
-# Create Kind cluster with port mapping
-kind create cluster --name golf-ai --config deploy/kind-config.yaml
-
-# Deploy — images pull from ghcr.io automatically
+# 3. Deploy — pre-built images pull from ghcr.io automatically
 kubectl apply -k deploy/base/
+
+# 4. Expose the frontend via LoadBalancer
+kubectl patch svc golf-frontend -n golf-ai -p '{"spec":{"type":"LoadBalancer"}}'
+
+# 5. Get the external IP (wait ~1 min for Azure to assign it)
+kubectl get svc golf-frontend -n golf-ai -w
 ```
 
-> ⏳ **Note:** The backend image is ~6GB (includes ML models). First pull may take 5–15 minutes depending on your internet speed. You can monitor progress with `kubectl get pods -n golf-ai -w`.
+Open **http://\<EXTERNAL-IP\>** once the IP appears.
 
-**Option B: Build images locally**
+> ⏳ **First deploy:** The backend image is ~6GB (includes all ML models baked in). Initial pull takes **3–10 minutes** depending on node size and network speed. Monitor with `kubectl get pods -n golf-ai -w`.
+
+### Deploy to AKS Arc / AKS Edge Essentials
 
 ```bash
-# Build images (backend ~5 min first time — downloads ML models)
+# 1. Connect to your AKS Arc cluster (on Azure Stack HCI / Azure Local)
+az login
+az connectedk8s proxy --name <arc-cluster> --resource-group <your-rg>
+# Or use the kubeconfig from your on-prem cluster directly
+
+# 2. Deploy
+kubectl apply -k deploy/base/
+
+# 3. Access via NodePort
+kubectl get svc golf-frontend -n golf-ai
+# Frontend is exposed on NodePort 30080
+```
+
+Open **http://\<node-ip\>:30080**
+
+> 💡 **AKS Edge Essentials:** Same steps apply — the manifests work on any K3s/K8s cluster provisioned by AKS Edge. Ensure your node has at least **8GB RAM** for the ML models.
+
+### Build Images Yourself (Optional)
+
+If you prefer to build from source or push to a private registry:
+
+```bash
+# Build (backend ~5 min — downloads ML models during build)
 docker build -t golf-ai-backend:latest -f backend/Dockerfile backend/
 docker build -t golf-ai-frontend:latest -f frontend/Dockerfile frontend/
 
-# Create Kind cluster with port mapping
-kind create cluster --name golf-ai --config deploy/kind-config.yaml
+# Push to your ACR
+az acr login --name <yourregistry>
+docker tag golf-ai-backend:latest <yourregistry>.azurecr.io/golf-ai-backend:latest
+docker tag golf-ai-frontend:latest <yourregistry>.azurecr.io/golf-ai-frontend:latest
+docker push <yourregistry>.azurecr.io/golf-ai-backend:latest
+docker push <yourregistry>.azurecr.io/golf-ai-frontend:latest
 
-# Load locally-built images into Kind & deploy
-kind load docker-image golf-ai-backend:latest golf-ai-frontend:latest --name golf-ai
-kubectl apply -k deploy/overlays/kind
+# Attach ACR to AKS and deploy with your registry
+az aks update --name <cluster> --resource-group <rg> --attach-acr <yourregistry>
+kubectl apply -k deploy/overlays/demo   # Edit overlay to point to your registry
 ```
 
-Open **http://localhost:3001** — no port-forward needed!
-
-> 📖 **Full deployment guide** (including AKS): [docs/deployment-guide.md](docs/deployment-guide.md)
+> 📖 **Full deployment guide** with troubleshooting and configuration: [docs/deployment-guide.md](docs/deployment-guide.md)
 
 ## Architecture
 

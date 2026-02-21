@@ -1,9 +1,12 @@
 # Deployment Guide
 
-This guide covers deploying the Golf Swing AI Analyzer in three ways:
-1. **Local development** (no containers)
-2. **Kind** (local Kubernetes)
-3. **AKS / any Kubernetes cluster** (production)
+This guide covers deploying the Golf Swing AI Analyzer to Azure Kubernetes clusters:
+
+1. **AKS** (Azure Kubernetes Service) — managed K8s in Azure cloud
+2. **AKS Arc** — AKS on Azure Stack HCI / Azure Local (hybrid/on-prem)
+3. **AKS Edge Essentials** — lightweight K8s on edge devices
+
+All deployment options use pre-built container images from `ghcr.io`. You can optionally build images yourself and push to your own Azure Container Registry (ACR).
 
 ---
 
@@ -11,154 +14,193 @@ This guide covers deploying the Golf Swing AI Analyzer in three ways:
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Python | 3.11+ | Backend |
-| Node.js | 18+ | Frontend build |
-| Docker | 24+ | Container builds |
-| kubectl | 1.28+ | K8s management |
-| kind | 0.20+ | Local K8s (Option 2) |
-| az CLI | 2.50+ | AKS (Option 3) |
+| kubectl | 1.28+ | K8s cluster management |
+| Azure CLI | 2.50+ | AKS / ACR / Azure operations |
+| Docker | 24+ | Only needed if building images yourself |
+
+```bash
+# Verify prerequisites
+az version
+kubectl version --client
+az login
+```
 
 ---
 
-## Option 1: Local Development
+## Option 1: AKS (Azure Kubernetes Service)
+
+The fastest path — deploy to a managed AKS cluster in Azure.
+
+### Step 1: Connect to your cluster
 
 ```bash
-# Clone
-git clone https://github.com/nnamuhcs/aks-edge-golf-ai.git
-cd aks-edge-golf-ai
+az login
+az aks get-credentials --name <your-cluster> --resource-group <your-rg>
 
-# Backend
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# Frontend (separate terminal)
-cd frontend
-npm install
-npm run build          # Build to dist/
-# Backend serves the built frontend at http://localhost:8000
+# Verify connection
+kubectl get nodes
 ```
-
-Open **http://localhost:8000** — the backend serves both the API and the frontend.
-
-> **Note:** On first run, the CLIP model (~600MB) downloads automatically from HuggingFace.
-
----
-
-## Option 2: Kind (Local Kubernetes)
-
-This is the recommended way to demo the full K8s deployment locally. You have two paths:
-
-- **Path A** — Pull pre-built images from `ghcr.io` (no build required, but large download)
-- **Path B** — Build images locally (takes time, but no large download)
-
-### Step 1: Create Kind cluster
-
-```bash
-# Create cluster with port mapping so NodePort is accessible on localhost
-kind create cluster --name golf-ai --config deploy/kind-config.yaml
-```
-
-The `deploy/kind-config.yaml` maps host port **3001** → container port **30080** (the frontend NodePort).
 
 ### Step 2: Deploy
 
-**Path A: Use pre-built images (no build needed)**
-
 ```bash
+git clone https://github.com/nnamuhcs/aks-edge-golf-ai.git
+cd aks-edge-golf-ai
+
 kubectl apply -k deploy/base/
 ```
 
-The manifests reference `ghcr.io/nnamuhcs/golf-ai-backend:latest` and `ghcr.io/nnamuhcs/golf-ai-frontend:latest`. Kubernetes will pull them automatically.
+The manifests reference `ghcr.io/nnamuhcs/golf-ai-backend:latest` and `ghcr.io/nnamuhcs/golf-ai-frontend:latest`. Kubernetes pulls them automatically.
 
-> ⏳ **Heads up:** The backend image is approximately **6GB** because it includes all ML models (MediaPipe, CLIP ViT-B/32, PyTorch). The first pull may take **5–15 minutes** depending on your connection speed. The frontend image is only ~93MB and pulls almost instantly.
+> ⏳ **First deploy note:** The backend image is approximately **6GB** because it includes all ML models (MediaPipe, CLIP ViT-B/32, PyTorch) baked in. The initial pull takes **3–10 minutes** depending on your AKS node size and network speed. The frontend image is only ~93MB and pulls almost instantly.
 >
-> Monitor progress: `kubectl get pods -n golf-ai -w` — look for `ContainerCreating` → `Running`.
+> Monitor progress: `kubectl get pods -n golf-ai -w` — wait for `ContainerCreating` → `Running`.
 
-**Path B: Build images locally**
-
-```bash
-cd aks-edge-golf-ai
-
-# Build backend (includes ML models — takes ~5 min first time)
-docker build -t golf-ai-backend:latest -f backend/Dockerfile backend/
-
-# Build frontend (~1 min)
-docker build -t golf-ai-frontend:latest -f frontend/Dockerfile frontend/
-
-# Load into Kind (transfers images into the node's containerd)
-kind load docker-image golf-ai-backend:latest golf-ai-frontend:latest --name golf-ai
-
-# Deploy using the kind overlay (points to local image names)
-kubectl apply -k deploy/overlays/kind
-```
-
-### Step 5: Verify
+### Step 3: Expose via LoadBalancer
 
 ```bash
-# Check pods are running
-kubectl get pods -n golf-ai
+kubectl patch svc golf-frontend -n golf-ai -p '{"spec":{"type":"LoadBalancer"}}'
 
-# Expected output:
-# NAME                             READY   STATUS    RESTARTS   AGE
-# golf-backend-xxx                 1/1     Running   0          30s
-# golf-frontend-xxx                1/1     Running   0          30s
-
-# Check services
-kubectl get svc -n golf-ai
-
-# Check PVCs
-kubectl get pvc -n golf-ai
+# Wait for Azure to assign an external IP (~1 min)
+kubectl get svc golf-frontend -n golf-ai -w
 ```
 
-### Step 6: Access
+### Step 4: Access
 
-Open **http://localhost:3001** — no port-forward needed!
-
-The frontend (nginx) proxies `/api/*` requests to the backend via K8s service DNS.
+Open **http://\<EXTERNAL-IP\>** in your browser once the IP appears.
 
 ### Cleanup
 
 ```bash
-kind delete cluster --name golf-ai
+kubectl delete namespace golf-ai
 ```
 
 ---
 
-## Option 3: AKS / Production Kubernetes
+## Option 2: AKS Arc (Azure Stack HCI / Azure Local)
 
-The base manifests already use public images from `ghcr.io/nnamuhcs/`. You can deploy directly or use your own registry.
+Deploy to an AKS Arc cluster running on your on-premises Azure Stack HCI or Azure Local infrastructure.
 
-### Direct deploy (using public images)
+### Step 1: Connect to your AKS Arc cluster
 
 ```bash
-# Connect to your AKS cluster
-az aks get-credentials --name <cluster> --resource-group <rg>
+az login
 
-# Deploy
+# Option A: Use connected cluster proxy
+az connectedk8s proxy --name <arc-cluster> --resource-group <your-rg>
+
+# Option B: Use kubeconfig from your on-prem cluster directly
+export KUBECONFIG=/path/to/your/kubeconfig
+```
+
+```bash
+# Verify connection
+kubectl get nodes
+```
+
+### Step 2: Deploy
+
+```bash
+git clone https://github.com/nnamuhcs/aks-edge-golf-ai.git
+cd aks-edge-golf-ai
+
 kubectl apply -k deploy/base/
 ```
 
-> ⏳ The backend image is ~6GB. Initial pull takes a few minutes on AKS nodes.
+> ⏳ The backend image is ~6GB. On-prem pull speed depends on your network connection to ghcr.io. If your environment has limited internet access, consider building images and pushing to a local registry (see [Build Images Yourself](#build-images-yourself-optional) below).
 
-### Using your own ACR (optional)
+### Step 3: Access via NodePort
+
+The frontend service is exposed on **NodePort 30080** by default:
 
 ```bash
-# Create registry
+kubectl get svc golf-frontend -n golf-ai
+kubectl get nodes -o wide   # Get node IP
+```
+
+Open **http://\<node-ip\>:30080**
+
+### Cleanup
+
+```bash
+kubectl delete namespace golf-ai
+```
+
+---
+
+## Option 3: AKS Edge Essentials
+
+Deploy to a lightweight K3s/K8s cluster provisioned by AKS Edge Essentials on Windows IoT or edge devices.
+
+### Step 1: Connect to your AKS Edge cluster
+
+```bash
+# AKS Edge Essentials provides a kubeconfig after provisioning
+# Typically located at:
+#   C:\Users\<user>\.kube\config  (Windows)
+#   or exported via AKS Edge PowerShell module
+
+kubectl get nodes
+```
+
+### Step 2: Deploy
+
+```bash
+git clone https://github.com/nnamuhcs/aks-edge-golf-ai.git
+cd aks-edge-golf-ai
+
+kubectl apply -k deploy/base/
+```
+
+> 💡 **Resource requirements:** Ensure your edge node has at least **8GB RAM** and **15GB free disk** for the ML model images. AKS Edge Essentials single-machine deployments should allocate sufficient memory to the Linux VM.
+
+### Step 3: Access via NodePort
+
+```bash
+kubectl get svc golf-frontend -n golf-ai
+```
+
+Open **http://\<edge-node-ip\>:30080**
+
+### Cleanup
+
+```bash
+kubectl delete namespace golf-ai
+```
+
+---
+
+## Build Images Yourself (Optional)
+
+If you prefer to use a private registry, need to customize the images, or have limited internet access on your cluster nodes:
+
+### Build and push to ACR
+
+```bash
+# Create ACR (skip if you already have one)
 az acr create --name <yourregistry> --resource-group <rg> --sku Basic
 az acr login --name <yourregistry>
 
-# Build and push
+# Build images
 docker build -t <yourregistry>.azurecr.io/golf-ai-backend:latest -f backend/Dockerfile backend/
 docker build -t <yourregistry>.azurecr.io/golf-ai-frontend:latest -f frontend/Dockerfile frontend/
+
+# Push to ACR
 docker push <yourregistry>.azurecr.io/golf-ai-backend:latest
 docker push <yourregistry>.azurecr.io/golf-ai-frontend:latest
+```
 
-# Attach ACR to AKS
+> ⏳ The backend build takes ~5 minutes the first time as it downloads ML models (~600MB CLIP + MediaPipe) and bakes them into the image.
+
+### Attach ACR to your AKS cluster
+
+```bash
 az aks update --name <cluster> --resource-group <rg> --attach-acr <yourregistry>
 ```
 
-Edit `deploy/overlays/demo/kustomization.yaml` to use your registry:
+### Deploy with your registry
+
+Edit `deploy/overlays/demo/kustomization.yaml` to point to your registry:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -178,50 +220,60 @@ images:
     newTag: latest
 ```
 
-Then deploy with: `kubectl apply -k deploy/overlays/demo`
-
-### Expose the service
-
-For AKS, change the frontend service type to `LoadBalancer`:
+Then deploy:
 
 ```bash
-kubectl patch svc golf-frontend -n golf-ai -p '{"spec":{"type":"LoadBalancer"}}'
+kubectl apply -k deploy/overlays/demo
 ```
 
-Then get the external IP:
+---
+
+## Verify Deployment
+
+These steps apply to all deployment options:
 
 ```bash
-kubectl get svc golf-frontend -n golf-ai -w
-# Wait for EXTERNAL-IP to appear
-```
+# Check pods are running
+kubectl get pods -n golf-ai
 
-Or use an Ingress controller for custom domain/TLS.
+# Expected output:
+# NAME                             READY   STATUS    RESTARTS   AGE
+# golf-backend-xxx                 1/1     Running   0          2m
+# golf-frontend-xxx                1/1     Running   0          2m
+
+# Check services
+kubectl get svc -n golf-ai
+
+# Check persistent volumes
+kubectl get pvc -n golf-ai
+```
 
 ---
 
 ## Architecture Overview
 
 ```
-                    ┌─────────────────────────────┐
-                    │   Kubernetes Cluster         │
-                    │   Namespace: golf-ai         │
-                    │                              │
-  localhost:3001 ──►│  ┌──────────┐  ┌──────────┐ │
-  (NodePort 30080)  │  │ Frontend │  │ Backend  │ │
-                    │  │ (nginx)  │─►│ (FastAPI) │ │
-                    │  │ port 80  │  │ port 8000│ │
-                    │  └──────────┘  └────┬─────┘ │
-                    │                     │       │
-                    │              ┌──────┴─────┐ │
-                    │              │ PVC: data  │ │
-                    │              │ PVC: models│ │
-                    │              └────────────┘ │
-                    └─────────────────────────────┘
+                    ┌──────────────────────────────────┐
+                    │   Kubernetes Cluster              │
+                    │   (AKS / AKS Arc / AKS Edge)     │
+                    │   Namespace: golf-ai              │
+                    │                                   │
+                    │  ┌──────────┐    ┌──────────────┐ │
+  LoadBalancer or ──►  │ Frontend │    │   Backend    │ │
+  NodePort :30080   │  │ (nginx)  │───►│  (FastAPI)   │ │
+                    │  │ port 80  │    │  port 8000   │ │
+                    │  └──────────┘    └──────┬───────┘ │
+                    │                         │         │
+                    │                ┌────────┴───────┐ │
+                    │                │  PVC: data     │ │
+                    │                │  PVC: models   │ │
+                    │                └────────────────┘ │
+                    └──────────────────────────────────┘
 ```
 
-- **Frontend (nginx)**: Serves React SPA, proxies `/api/*` to backend service
-- **Backend (FastAPI)**: ML pipeline — MediaPipe pose + CLIP embeddings
-- **PVCs**: Persistent storage for uploaded videos, results, and model cache
+- **Frontend (nginx)** — Serves the React SPA and proxies `/api/*` requests to the backend K8s service
+- **Backend (FastAPI)** — ML inference pipeline: MediaPipe pose estimation + CLIP embedding matching
+- **PVCs** — Persistent storage for uploaded videos, analysis results, and ML model cache
 
 ## Environment Variables
 
@@ -237,8 +289,11 @@ Or use an Ingress controller for custom domain/TLS.
 
 | Problem | Solution |
 |---------|----------|
-| Backend pod stuck in `ContainerCreating` | PVC may not bind — check `kubectl get pvc -n golf-ai` |
+| Backend pod stuck in `ContainerCreating` | Image is ~6GB — wait for pull to complete. Check `kubectl describe pod <name> -n golf-ai` for pull progress |
+| Backend pod `CrashLoopBackOff` | Check logs: `kubectl logs -n golf-ai deployment/golf-backend`. Likely insufficient memory — ensure node has ≥8GB RAM |
+| PVC stuck in `Pending` | Storage class may not be available. Check `kubectl get sc` and ensure a default storage class exists |
 | Frontend shows blank page | Check nginx config — `/assets/` must NOT proxy to backend |
-| Models downloading at startup | Normal on first run (~600MB CLIP model). Pre-baked in Docker image. |
 | Upload fails with 413 | Increase `client_max_body_size` in nginx.conf (default: 200M) |
-| Slow analysis | Expected on CPU — ~20-30s per video. GPU not required for demo. |
+| Slow analysis | Expected on CPU — ~20-30s per video. GPU not required for demo |
+| Can't pull images from ghcr.io | Ensure cluster nodes have internet access. For air-gapped environments, build and push to a local registry |
+| AKS Arc: `connectedk8s proxy` fails | Ensure Arc agent is healthy: `az connectedk8s show --name <cluster> --resource-group <rg>` |
