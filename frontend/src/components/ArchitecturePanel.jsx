@@ -28,22 +28,26 @@ const EDGES = [
 ]
 
 const K8S_COMPONENTS = [
-  { icon: '☸', name: 'AKS Edge',              kind: 'Cluster',              desc: 'Kubernetes on edge devices' },
-  { icon: '📦', name: 'golf-backend',          kind: 'Deployment',           desc: 'FastAPI + ML pipeline container' },
-  { icon: '📦', name: 'golf-frontend',         kind: 'Deployment',           desc: 'Nginx serving React SPA' },
-  { icon: '🔗', name: 'golf-backend',          kind: 'Service',              desc: 'ClusterIP port 8000' },
-  { icon: '🔗', name: 'golf-frontend',         kind: 'Service',              desc: 'NodePort 30080' },
-  { icon: '💾', name: 'golf-model-cache-pvc',  kind: 'PersistentVolumeClaim', desc: 'MediaPipe + CLIP model weights' },
-  { icon: '💾', name: 'golf-data-pvc',         kind: 'PersistentVolumeClaim', desc: 'Uploads and analysis results' },
-  { icon: '⚙️', name: 'golf-backend-config',   kind: 'ConfigMap',            desc: 'Runtime settings' },
-  { icon: '🔑', name: 'golf-backend-sa',       kind: 'ServiceAccount',       desc: 'RBAC for K8s API access' },
+  { name: 'golf-backend',          kind: 'Deployment' },
+  { name: 'golf-frontend',         kind: 'Deployment' },
+  { name: 'golf-backend',          kind: 'Service (ClusterIP)' },
+  { name: 'golf-frontend',         kind: 'Service (NodePort)' },
+  { name: 'golf-model-cache-pvc',  kind: 'PVC' },
+  { name: 'golf-data-pvc',         kind: 'PVC' },
+  { name: 'golf-backend-config',   kind: 'ConfigMap' },
+  { name: 'golf-backend-sa',       kind: 'ServiceAccount' },
 ]
 
 const TECH_STACK = [
   { category: 'Frontend', items: ['React 18', 'Vite', 'CSS3 Custom Properties'] },
   { category: 'Backend', items: ['Python 3.11', 'FastAPI', 'uvicorn', 'OpenCV', 'ffmpeg'] },
   { category: 'ML Models', items: ['MediaPipe Pose (Heavy)', 'CLIP ViT-B/32 (HuggingFace)'] },
-  { category: 'Infrastructure', items: ['Kubernetes', 'AKS Edge'] },
+]
+
+const INFRA_STACK = [
+  { category: 'Container', items: ['Docker', 'Nginx'] },
+  { category: 'Orchestration', items: ['Kubernetes', 'AKS / AKS Arc / AKS Edge'] },
+  { category: 'Storage', items: ['PersistentVolumeClaims', 'ConfigMaps'] },
 ]
 
 const GROUP_COLORS = {
@@ -328,12 +332,11 @@ function ArchitecturePanel({ onBack }) {
         {/* K8s Architecture */}
         <div className="arch-k8s-section">
           <h3 className="arch-section-title">
-            <span>☸</span> K8s Deployment
+            K8s Deployment
           </h3>
           <div className="arch-k8s-grid">
             {K8S_COMPONENTS.map((comp, i) => (
               <div key={i} className="arch-k8s-card">
-                <div className="arch-k8s-icon">{comp.icon}</div>
                 <div className="arch-k8s-info">
                   <div className="arch-k8s-name">{comp.name}</div>
                   <div className="arch-k8s-kind">{comp.kind}</div>
@@ -346,7 +349,7 @@ function ArchitecturePanel({ onBack }) {
         {/* Tech Stack */}
         <div className="arch-stack-section">
           <h3 className="arch-section-title">
-            <span>🛠️</span> Tech Stack
+            Tech Stack
           </h3>
           <div className="arch-stack-grid">
             {TECH_STACK.map((cat, i) => (
@@ -362,10 +365,29 @@ function ArchitecturePanel({ onBack }) {
           </div>
         </div>
 
+        {/* Infrastructure */}
+        <div className="arch-stack-section">
+          <h3 className="arch-section-title">
+            Infrastructure
+          </h3>
+          <div className="arch-stack-grid">
+            {INFRA_STACK.map((cat, i) => (
+              <div key={i} className="arch-stack-card">
+                <div className="arch-stack-category">{cat.category}</div>
+                <div className="arch-stack-items">
+                  {cat.items.map((item, j) => (
+                    <span key={j} className="arch-stack-tag">{item}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Data Flow */}
         <div className="arch-flow-section">
           <h3 className="arch-section-title">
-            <span>🔄</span> Data Flow
+            Data Flow
           </h3>
           <div className="arch-flow-steps">
             {FLOW_STEPS.map((s, i) => (
